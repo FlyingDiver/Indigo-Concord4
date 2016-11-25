@@ -66,7 +66,7 @@ CAPABILITY_CODES = {
     # Code -> (Description, Optional Data Description)
     0x00: ("Power Supervision", None),
     0x01: ("Access Control", None),
-    0x02: ("Analog Snmoke", None),
+    0x02: ("Analog Smoke", None),
     0x03: ("Audio Listen-In", None),
     0x04: ("SnapCard Supervision", None),
     0x05: ("Microburst", None),

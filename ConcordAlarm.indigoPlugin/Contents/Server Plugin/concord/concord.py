@@ -64,9 +64,6 @@ class SerialInterface(object):
                                     stopbits=CONCORD_STOPBITS, timeout=timeout_secs,
                                     xonxoff=False, rtscts=False, dsrdtr=False)
 
-    def message_chars_maybe_available(self):
-        return self.serdev.inWaiting() > 0
-
     def wait_for_message_start(self):
         """ 
         Read from the serial port until the message-start character is
@@ -180,8 +177,8 @@ class SerialInterface(object):
         message-start linefeed character.
         """
         framed_msg = MSG_START + encode_message_to_ascii(msg) 
-        self.logger.debug_verbose("write_message: %r" % framed_msg)
-        self.serdev.write(framed_msg)
+        self.logger.debug_verbose("write_message: %r" % framed_msg.upper())
+        self.serdev.write(framed_msg.upper())
 
     def write(self, data):
         """ Write raw *data* to the serial port. """
@@ -377,11 +374,7 @@ class AlarmPanelInterface(object):
             # 
             # Handle incoming messages.
             #
-            # Two part test: the first part will fail right away if
-            # there no characters, regardless of the timeout, so we
-            # minimize time waiting on messages that won't arrive.
-            if self.serial_interface.message_chars_maybe_available() \
-                    and self.serial_interface.wait_for_message_start() == MSG_START:
+            if self.serial_interface.wait_for_message_start() == MSG_START:
                 no_inputs = False
 
                 msg_ok = True
