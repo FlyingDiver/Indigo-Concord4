@@ -105,6 +105,8 @@ NO_DATA = '<NO DATA>'
 KEYPRESS_SILENT = [ 5 ]
 KEYPRESS_ARM_STAY = [ 2 ]
 KEYPRESS_ARM_AWAY = [ 3 ]
+KEYPRESS_NO_DELAY = [ 4 ]
+KEYPRESS_DISARM = [ 1 ]
 KEYPRESS_BYPASS = [ 0xb ] # '#'
 KEYPRESS_TOGGLE_CHIME = [ 7, 1 ]
 
@@ -853,6 +855,31 @@ v        """
         self.panelDev.updateStateOnServer('panelZoneMonitorEnabled', self.zoneMonitorEnabled)
         self.panelDev.updateStateOnServer('panelZoneMonitorSendEmail', self.zoneMonitorSendEmail)
 
+    def actionArmDisarm(self, action):
+        type = self.substitute(action.props.get("type", ""))
+        code = self.substitute(action.props.get("code", ""))
+        if type == "stay":
+            keys = [ ]
+            code_str = str(code)
+            keys += KEYPRESS_ARM_STAY
+            for digit in code_str:
+                keys += [ int(digit) ]
+            keys += KEYPRESS_NO_DELAY
+            self.panel.send_keypress(keys, 1)
+        if type == "away":
+            keys = [ ]
+            code_str = str(code)
+            keys += KEYPRESS_ARM_AWAY
+            for digit in code_str:
+                keys += [ int(digit) ]
+            self.panel.send_keypress(keys, 1)
+        if type == "disarm":
+            keys = [ ]
+            code_str = str(code)
+            keys += KEYPRESS_DISARM
+            for digit in code_str:
+                keys += [ int(digit) ]
+            self.panel.send_keypress(keys, 1)
 
     #
     # Helpers for XML config

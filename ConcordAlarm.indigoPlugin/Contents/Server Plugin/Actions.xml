@@ -41,7 +41,7 @@
 
 	<Action id="arm">
 	  <Name>Arm</Name>
-	  <CallbackMethod>arm</CallbackMethod>
+	  <CallbackMethod>actionArmDisarm</CallbackMethod>
 	  
 	  <ConfigUI>
 	    <Field id="lab1" type="label">Arm this partition so it will trigger alarms when its zones are violated.</Field>
@@ -51,17 +51,13 @@
               <List>
 		<Option value="away">Away</Option>
 		<Option value="stay">Stay</Option>
-		<Option value="instant">Instant</Option>
-		<Option value="max">Max</Option>
+                <Option value="disarm">Disarm</Option>
 	      </List>
             </Field>
 	    
 	    <Field id="sep2" type="separator"/>
 	    <Field id="code" type="textfield" secure="true" defaultValue="1">
 	      <Label>Code:</Label>
-	    </Field>
-	    <Field id="user" type="textfield" defaultValue="1">
-	      <Label>User:</Label>
 	    </Field>
 	  </ConfigUI>
 	</Action>
