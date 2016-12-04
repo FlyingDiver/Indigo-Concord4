@@ -104,7 +104,7 @@ NO_DATA = '<NO DATA>'
 #
 KEYPRESS_SILENT = [ 5 ]
 KEYPRESS_ARM_STAY = [ 2 ]
-KEYPRESS_ARM_AWAY = [ 3 ]
+KEYPRESS_ARM_AWAY = [ 0x27 ] # 'keyfob arm away (no exit door trip required)'
 KEYPRESS_NO_DELAY = [ 4 ]
 KEYPRESS_DISARM = [ 1 ]
 KEYPRESS_BYPASS = [ 0xb ] # '#'
