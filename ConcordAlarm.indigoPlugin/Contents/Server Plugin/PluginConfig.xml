@@ -1,27 +1,26 @@
 <?xml version="1.0"?>
 <PluginConfig>
-  <SupportURL>http://decouto.bm</SupportURL>
-  <Field type="serialport" id="panelSerialPort" />
-  <Field type="menu" id="logLevel" defaultValue="info">
-    <Label>Logging level</Label>
-    <List>
-      <Option value="error">Errors Only</Option>
-      <Option value="warn">Warnings and above</Option>
-      <Option value="info">Informational and above</Option>
-      <Option value="debug">Debug information and above</Option>
-      <Option value="debugVerbose">Overly-detailed debug info and above</Option>
-    </List>
-  </Field>
-  <Field type="textfield" id="reportEmail">
-    <Label>Email reports</Label>
-  </Field>
-  <Field type="textfield" id="logDays" default="5">
-    <Label>Log size (days)</Label>
-  </Field>
-  <Field type="textfield" id="errLogDays" default="30">
-    <Label>Error log size (days)</Label>
-  </Field>
-  <Field type="checkbox" id="keepAlive">
-    <Label>Use keep-alive monitoring</Label>
-  </Field>
+    <Field type="serialport" id="panelSerialPort" />
+    <Field type="menu" id="logLevel" defaultValue="info">
+        <Label>Logging level</Label>
+        <List>
+            <Option value="error">Errors Only</Option>
+            <Option value="warn">Warnings and above</Option>
+            <Option value="info">Informational and above</Option>
+            <Option value="debug">Debug information and above</Option>
+            <Option value="debugVerbose">Overly-detailed debug info and above</Option>
+        </List>
+    </Field>
+    <Field type="textfield" id="reportEmail">
+        <Label>Email reports</Label>
+    </Field>
+    <Field type="textfield" id="logDays" default="5">
+        <Label>Log size (days)</Label>
+    </Field>
+    <Field type="textfield" id="errLogDays" default="30">
+        <Label>Error log size (days)</Label>
+    </Field>
+    <Field type="checkbox" id="keepAlive">
+        <Label>Use keep-alive monitoring</Label>
+    </Field>
 </PluginConfig>

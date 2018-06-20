@@ -1,55 +1,47 @@
 <?xml version="1.0"?>
 <Events>
-  <SupportURL>http://decouto.bm</SupportURL>
-  <Event id="armingLevel">
-    <Name>Arming Level Changed</Name>
-    <ConfigUI>
-      <Field type="menu" id="address" defaultValue="any">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilterForTriggers"/>
-      </Field>
-
-      <Field type="menu" id="partitionState" defaultValue="any">
-        <Label>Arming Level:</Label>
-        <List class="self" filter="N/A" method="partitionStateFilterForTriggers"/>
-      </Field>
-    </ConfigUI>
-  </Event>
-
-  <Event id="alarm">
-    <Name>Alarm/Trouble Event</Name>
-    <ConfigUI>
-      <Field type="menu" id="address" defaultValue="any">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilterForTriggers"/>
-      </Field>
-
-      <Field type="menu" id="alarmGeneralType" defaultValue="any">
-        <Label>Alarm General Type:</Label>
-        <List class="self" filter="N/A" method="alarmGeneralTypeFilter"/>
-      </Field>
-
-    </ConfigUI>
-  </Event>
-
-  <Event id="zoneStateChanged">
-    <Name>Zone Device State Changed</Name>
-    <ConfigUI>
-      <Field type="menu" id="address" defaultValue="any">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilterForTriggers"/>
-      </Field>
-    </ConfigUI>
-  </Event>
-
-  <Event id="zoneMonitorTriggered">
-    <Name>Zone Monitor Triggered</Name>
-    <ConfigUI>
-      <Field type="menu" id="address" defaultValue="any">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilterForTriggers"/>
-      </Field>
-    </ConfigUI>
-  </Event>
-
+    <Event id="armingLevel">
+        <Name>Arming Level Changed</Name>
+        <ConfigUI>
+            <Field type="menu" id="address" defaultValue="any">
+                <Label>Partition:</Label>
+                <List class="self" filter="N/A" method="partitionFilterForTriggers"/>
+            </Field>
+            <Field type="menu" id="partitionState" defaultValue="any">
+                <Label>Arming Level:</Label>
+                <List class="self" filter="N/A" method="partitionStateFilterForTriggers"/>
+            </Field>
+        </ConfigUI>
+    </Event>
+    <Event id="alarm">
+        <Name>Alarm/Trouble Event</Name>
+        <ConfigUI>
+            <Field type="menu" id="address" defaultValue="any">
+	            <Label>Partition:</Label>
+	            <List class="self" filter="N/A" method="partitionFilterForTriggers"/>
+            </Field>
+            <Field type="menu" id="alarmGeneralType" defaultValue="any">
+                <Label>Alarm General Type:</Label>
+                <List class="self" filter="N/A" method="alarmGeneralTypeFilter"/>
+            </Field>
+        </ConfigUI>
+    </Event>
+    <Event id="zoneStateChanged">
+        <Name>Zone Device State Changed</Name>
+        <ConfigUI>
+            <Field type="menu" id="address" defaultValue="any">
+	            <Label>Partition:</Label>
+	            <List class="self" filter="N/A" method="partitionFilterForTriggers"/>
+            </Field>
+        </ConfigUI>
+    </Event>
+    <Event id="zoneMonitorTriggered">
+        <Name>Zone Monitor Triggered</Name>
+        <ConfigUI>
+            <Field type="menu" id="address" defaultValue="any">
+	            <Label>Partition:</Label>
+	            <List class="self" filter="N/A" method="partitionFilterForTriggers"/>
+            </Field>
+        </ConfigUI>
+    </Event>
 </Events>

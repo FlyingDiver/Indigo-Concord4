@@ -1,220 +1,197 @@
 <?xml version="1.0"?>
 <Devices>
+    <Device type="custom" id="panel">
+        <Name>Concord Alarm Panel</Name>
+        <ConfigUI>
+            <Field type="label" id="theLabel">
+                <Label>Concord alarm panel.</Label>
+            </Field> 
+            <Field type="label" id="theLabel2">
+                <Label>Configure communication setting via the Plugin configuration.</Label>
+            </Field>
+            <!-- Will be populated with serial port name by validateDeviceConfigUi -->
+            <Field id="address" type="textField" defaultValue="unknown" hidden="true" />
+        </ConfigUI>
+        <States>
+            <State id="panelType" defautValue="Unknown" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Panel type</TriggerLabel>
+                <ControlPageLabel>Panel type</ControlPageLabel>
+            </State>
+            <State id="panelIsConcord" boolType="YesNo" defautValue="No" readonly="YES">
+                <ValueType>Boolean</ValueType>
+                <TriggerLabel>Panel is Concord</TriggerLabel>
+                <ControlPageLabel>Panel is Concord</ControlPageLabel>
+            </State>
+            <State id="panelSerialNumber" defautValue="Unknown" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Panel serial number</TriggerLabel>
+                <ControlPageLabel>Panel serial number</ControlPageLabel>
+            </State>
+            <State id="panelHwRev" defautValue="Unknown" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Panel hardware revision</TriggerLabel>
+                <ControlPageLabel>Panel hardware revision</ControlPageLabel>
+            </State>
+            <State id="panelSwRev" defautValue="Unknown" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Panel software revision</TriggerLabel>
+                <ControlPageLabel>Panel software revision</ControlPageLabel>
+            </State>
+            <State id="panelState" defaultValue="unknown" readonly="YES">
+	            <ValueType>
+	                <List>
+                        <Option value="unavailable">Unavailable</Option>
+	                    <Option value="connecting">Connecting</Option>
+	                    <Option value="exploring">Exploring</Option>
+	                    <Option value="active">Active</Option>
+	                    <Option value="faulted">Faulted</Option>
+	                </List>
+	            </ValueType>
+	            <TriggerLabel>Panel State is</TriggerLabel>
+	            <ControlPageLabel>Panel State</ControlPageLabel>
+            </State>
+            <State id="panelZoneMonitorEnabled" defaultValue="Off" readonly="YES">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone Monitor is</TriggerLabel>
+	            <ControlPageLabel>Zone Monitor</ControlPageLabel>
+            </State>
+            <State id="panelZoneMonitorSendEmail" defaultValue="Off" readonly="YES">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone Monitor Email is</TriggerLabel>
+	            <ControlPageLabel>Zone Monitor Email</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>panelState</UiDisplayStateId>
+    </Device>
 
-  <Device type="custom" id="panel">
-    <Name>Concord Alarm Panel</Name>
+    <Device type="custom" id="touchpad">
+        <Name>Touchpad</Name>
+        <ConfigUI>
+            <Field type="menu" id="address" defaultValue="1">
+	            <Label>Partition:</Label>
+	            <List class="self" filter="N/A" method="partitionFilter"/>
+            </Field>
+        </ConfigUI>
+        <States>
+            <State id="lcdLine1" defautValue="" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>LCD Line 1 is</TriggerLabel>
+                <ControlPageLabel>LCD Line 1</ControlPageLabel>
+            </State>
+            <State id="lcdLine2" defautValue="" readonly="YES">
+                <ValueType>String</ValueType>
+                <TriggerLabel>LCD Line 2 is</TriggerLabel>
+                <ControlPageLabel>LCD Line 2</ControlPageLabel>
+            </State>
+            <State id="partitionState" defaultValue="unknown">
+	            <ValueType>
+                    <!-- Unfortunately don't deem to be able to use the dynamic
+                       filter to populate the list of valid partition
+                       states. 
+                     -->
+                    <!-- <List class="self" filter="N/A" method="partitionStateFilter"/> -->
+                    <List>
+                        <Option value="unknown">Unknown</Option>
+	                    <Option value="ready">Ready</Option> 
+	                    <Option value="unready">Not Ready</Option> 
+	                    <Option value="zone_test">Phone Test</Option>
+                        <Option value="phone_test">Phone Test</Option>
+                        <Option value="sensor_test">Sensor Test</Option>
+	                    <Option value="stay">Armed Stay</Option>
+	                    <Option value="away">Armed Away</Option>
+	                    <Option value="night">Armed Night</Option>
+	                    <Option value="silent">Armed Silent</Option>
+	                </List>
+	            </ValueType>
+	            <TriggerLabel>Partition State is</TriggerLabel>
+	            <ControlPageLabel>Partition State</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>partitionState</UiDisplayStateId>
+    </Device>
 
-    <ConfigUI>
-      <SupportURL>http://decouto.bm</SupportURL>
-       <Field type="label" id="theLabel">
-         <Label>Concord alarm panel.</Label>
-       </Field> 
-       <Field type="label" id="theLabel2">
-         <Label>Configure communication setting via the Plugin configuration.</Label>
-      </Field>
-      <!-- Will be populated with serial port name by validateDeviceConfigUi -->
-      <Field id="address" type="textField" defaultValue="unknown" hidden="true" />
-    </ConfigUI>
+    <Device type="custom" id="partition">
+        <Name>Partition</Name>
+        <ConfigUI>
+            <!-- Use standard 'address' field to hold partition number so
+                it shows up in the UI with no extra work by us -->
+            <Field type="menu" id="address" defaultValue="1">
+	            <Label>Partition:</Label>
+	                <List class="self" filter="N/A" method="partitionFilter"/>
+            </Field>
+        </ConfigUI>
+        <States>
+            <State id="partitionState" defaultValue="unknown">
+	            <ValueType>
+                  <!-- Unfortunately don't deem to be able to use the dynamic
+                       filter to populate the list of valid partition
+                       states. 
+                  -->
+                  <!-- <List class="self" filter="N/A" method="partitionStateFilter"/> -->
+                    <List>
+                        <Option value="unknown">Unknown</Option>
+	                    <Option value="ready">Ready</Option> 
+	                    <Option value="unready">Not Ready</Option> 
+	                    <Option value="zone_test">Phone Test</Option>
+                        <Option value="phone_test">Phone Test</Option>
+                        <Option value="sensor_test">Sensor Test</Option>
+	                    <Option value="stay">Armed Stay</Option>
+	                    <Option value="away">Armed Away</Option>
+	                    <Option value="night">Armed Night</Option>
+	                    <Option value="silent">Armed Silent</Option>
+	                </List>
+	            </ValueType>
+	            <TriggerLabel>Partition State is</TriggerLabel>
+	            <ControlPageLabel>Partition State</ControlPageLabel>
+            </State>
+            <State id="armingUser" defaultValue="Unknown">
+                <ValueType>String</ValueType>
+	            <TriggerLabel>Arming User is</TriggerLabel>
+	            <ControlPageLabel>Arming User</ControlPageLabel>
+            </State>
+            <State id="features" defaultValue="Unknown">
+                <ValueType>String</ValueType>
+	            <TriggerLabel>Features are</TriggerLabel>
+	            <ControlPageLabel>Features</ControlPageLabel>
+            </State>
 
-    <States>
-      <State id="panelType" defautValue="Unknown" readonly="YES">
-        <TriggerLabel>Panel type</TriggerLabel>
-        <ControlPageLabel>Panel type</ControlPageLabel>
-        <ValueType>String</ValueType>
-      </State>
-      <State id="panelIsConcord" boolType="YesNo" defautValue="No" readonly="YES">
-        <ValueType>Boolean</ValueType>
-        <TriggerLabel>Panel is Concord</TriggerLabel>
-        <ControlPageLabel>Panel is Concord</ControlPageLabel>
-      </State>
-      <State id="panelSerialNumber" defautValue="Unknown" readonly="YES">
-        <ValueType>String</ValueType>
-        <TriggerLabel>Panel serial number</TriggerLabel>
-        <ControlPageLabel>Panel serial number</ControlPageLabel>
-      </State>
-      <State id="panelHwRev" defautValue="Unknown" readonly="YES">
-        <ValueType>String</ValueType>
-        <TriggerLabel>Panel hardware revision</TriggerLabel>
-        <ControlPageLabel>Panel hardware revision</ControlPageLabel>
-      </State>
-      <State id="panelSwRev" defautValue="Unknown" readonly="YES">
-        <ValueType>String</ValueType>
-        <TriggerLabel>Panel software revision</TriggerLabel>
-        <ControlPageLabel>Panel software revision</ControlPageLabel>
-      </State>
-      <State id="panelState" defaultValue="unknown" readonly="YES">
-	<ValueType>
-	  <List>
-            <Option value="unavailable">Unavailable</Option>
-	    <Option value="connecting">Connecting</Option>
-	    <Option value="exploring">Exploring</Option>
-	    <Option value="active">Active</Option>
-	    <Option value="faulted">Faulted</Option>
-	  </List>
-	</ValueType>
-	<TriggerLabel>Panel State is</TriggerLabel>
-	<ControlPageLabel>Panel State</ControlPageLabel>
-      </State>
-      <State id="panelZoneMonitorEnabled" defaultValue="Off" readonly="YES">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone Monitor is</TriggerLabel>
-	<ControlPageLabel>Zone Monitor</ControlPageLabel>
-      </State>
-      <State id="panelZoneMonitorSendEmail" defaultValue="Off" readonly="YES">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone Monitor Email is</TriggerLabel>
-	<ControlPageLabel>Zone Monitor Email</ControlPageLabel>
-      </State>
-    </States>
+            <!-- Following states are to track alarm status of partition -->
+            <!-- Alarm source, e.g. "Zone 4", "System" -->
+            <State id="alarmSource" defaultValue="None">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Alarm source is</TriggerLabel>
+                <ControlPageLabel>Alarm source</ControlPageLabel>
+            </State>
+            <!-- Two-part numeric alarm code, e.g. "1.4" would be Polic Panic (see protocol docs) -->
+            <State id="alarmCode" defaultValue="None">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Alarm code</TriggerLabel>
+                <ControlPageLabel>Alarm code is</ControlPageLabel>
+            </State>
+            <!-- Text description of alarm -->
+            <State id="alarmDescription" defaultValue="None">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Alarm description is</TriggerLabel>
+                <ControlPageLabel>Alarm Description</ControlPageLabel>
+            </State>
+            <!-- Alarm event data; generally unused and if used is typically a
+                 user number, but stick it here anyway. -->
+            <State id="alarmEventData" defaultValue="None">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Alarm event data is</TriggerLabel>
+                <ControlPageLabel>Alarm event data</ControlPageLabel>
+            </State>
 
-    <UiDisplayStateId>panelState</UiDisplayStateId>
-  </Device>
-
-
-  <Device type="custom" id="touchpad">
-    <Name>Touchpad</Name>
-
-    <ConfigUI>
-      <SupportURL>http://decouto.bm</SupportURL>
-      <Field type="menu" id="address" defaultValue="1">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilter"/>
-      </Field>
-    </ConfigUI>
-
-    <States>
-      <State id="lcdLine1" defautValue="" readonly="YES">
-        <TriggerLabel>LCD Line 1 is</TriggerLabel>
-        <ControlPageLabel>LCD Line 1</ControlPageLabel>
-        <ValueType>String</ValueType>
-      </State>
-      <State id="lcdLine2" defautValue="" readonly="YES">
-        <TriggerLabel>LCD Line 2 is</TriggerLabel>
-        <ControlPageLabel>LCD Line 2</ControlPageLabel>
-        <ValueType>String</ValueType>
-      </State>
-
-      <!-- Plugin will keep the touchpad's partition state synced with
-           that of the corresponding partition. 
-      -->
-      <State id="partitionState" defaultValue="unknown">
-	<ValueType>
-          <!-- Unfortunately don't deem to be able to use the dynamic
-               filter to populate the list of valid partition
-               states. 
-          -->
-          <!-- <List class="self" filter="N/A" method="partitionStateFilter"/> -->
-          <List>
-            <Option value="unknown">Unknown</Option>
-	    <Option value="ready">Ready</Option> 
-	    <Option value="unready">Not Ready</Option> 
-	    <Option value="zone_test">Phone Test</Option>
-            <Option value="phone_test">Phone Test</Option>
-            <Option value="sensor_test">Sensor Test</Option>
-	    <Option value="stay">Armed Stay</Option>
-	    <Option value="away">Armed Away</Option>
-	    <Option value="night">Armed Night</Option>
-	    <Option value="silent">Armed Silent</Option>
-	  </List>
-	</ValueType>
-	<TriggerLabel>Partition State is</TriggerLabel>
-	<ControlPageLabel>Partition State</ControlPageLabel>
-      </State>
-    </States>
-
-    <UiDisplayStateId>partitionState</UiDisplayStateId>
-  </Device>
-
-
-  <Device type="custom" id="partition">
-    <Name>Partition</Name>
-
-    <ConfigUI>
-      <SupportURL>http://decouto.bm</SupportURL>
-      <!-- Use standard 'address' field to hold partition number so
-           it shows up in the UI with no extra work by us -->
-      <Field type="menu" id="address" defaultValue="1">
-	<Label>Partition:</Label>
-	<List class="self" filter="N/A" method="partitionFilter"/>
-      </Field>
-    </ConfigUI>
-
-
-    <States>
-      <State id="partitionState" defaultValue="unknown">
-	<ValueType>
-          <!-- Unfortunately don't deem to be able to use the dynamic
-               filter to populate the list of valid partition
-               states. 
-          -->
-          <!-- <List class="self" filter="N/A" method="partitionStateFilter"/> -->
-          <List>
-            <Option value="unknown">Unknown</Option>
-	    <Option value="ready">Ready</Option> 
-	    <Option value="unready">Not Ready</Option> 
-	    <Option value="zone_test">Phone Test</Option>
-            <Option value="phone_test">Phone Test</Option>
-            <Option value="sensor_test">Sensor Test</Option>
-	    <Option value="stay">Armed Stay</Option>
-	    <Option value="away">Armed Away</Option>
-	    <Option value="night">Armed Night</Option>
-	    <Option value="silent">Armed Silent</Option>
-	  </List>
-	</ValueType>
-	<TriggerLabel>Partition State is</TriggerLabel>
-	<ControlPageLabel>Partition State</ControlPageLabel>
-      </State>
-
-      <State id="armingUser" defaultValue="Unknown">
-        <ValueType>String</ValueType>
-	<TriggerLabel>Arming User is</TriggerLabel>
-	<ControlPageLabel>Arming User</ControlPageLabel>
-      </State>
-
-      <State id="features" defaultValue="Unknown">
-        <ValueType>String</ValueType>
-	<TriggerLabel>Features are</TriggerLabel>
-	<ControlPageLabel>Features</ControlPageLabel>
-      </State>
-
-    <!-- Following states are to track alarm status of partition -->
-    <!-- Alarm source, e.g. "Zone 4", "System" -->
-    <State id="alarmSource" defaultValue="None">
-      <ValueType>String</ValueType>
-      <TriggerLabel>Alarm source is</TriggerLabel>
-      <ControlPageLabel>Alarm source</ControlPageLabel>
-    </State>
-    <!-- Two-part numeric alarm code, e.g. "1.4" would be Polic Panic (see protocol docs) -->
-    <State id="alarmCode" defaultValue="None">
-      <ValueType>String</ValueType>
-      <TriggerLabel>Alarm code</TriggerLabel>
-      <ControlPageLabel>Alarm code is</ControlPageLabel>
-    </State>
-    <!-- Text description of alarm -->
-    <State id="alarmDescription" defaultValue="None">
-      <ValueType>String</ValueType>
-      <TriggerLabel>Alarm description is</TriggerLabel>
-      <ControlPageLabel>Alarm Description</ControlPageLabel>
-    </State>
-    <!-- Alarm event data; generally unused and if used is typically a
-         user number, but stick it here anyway. -->
-    <State id="alarmEventData" defaultValue="None">
-      <ValueType>String</ValueType>
-      <TriggerLabel>Alarm event data is</TriggerLabel>
-      <ControlPageLabel>Alarm event data</ControlPageLabel>
-    </State>
-
-    <!-- Entry/exit delay information -->
-    <State id="delay" defaultValue="None">
-      <ValueType>String</ValueType>
-      <TriggerLabel>Delay is</TriggerLabel>
-      <ControlPageLabel>Delay</ControlPageLabel>
-    </State>
-
-  </States>
-
-    <UiDisplayStateId>partitionState</UiDisplayStateId>
-  </Device>
+            <!-- Entry/exit delay information -->
+            <State id="delay" defaultValue="None">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Delay is</TriggerLabel>
+                <ControlPageLabel>Delay</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>partitionState</UiDisplayStateId>
+    </Device>
 
 
   <!--
@@ -240,92 +217,84 @@
   -->
 
 
-  <Device type="custom" id="zone">
-    <Name>Zone</Name>
-    <ConfigUI>
-      <SupportURL>http://decouto.bm</SupportURL>
-      <!-- The code will combine the partition number and the zone number 
-           and put them in the 'address' field so they show up in the UI.
-           See the validateDeviceConfigUi function. -->
-      <Field id="address" type="textField" defaultValue="unknown" hidden="true" />
-      <!-- We only allow user to select valid partition numbers, driven by this callback. -->          
-      <Field id="partitionNumber" type="menu" defaultValue="1">
-	<List class="self" filter="N/A" method="partitionFilter"/>
-	<Label>Partition:</Label>
-      </Field>
-      <!-- But, let user enter any zone number (> 0), even if that zone ends
-           up never existing.  This way user can setup zones even if they can't 
-           connect to the alarm panel and download the zone list into this plugin. -->
-      <Field id="zoneNumber" type="textField" defaultValue="">
-	<Label>Zone:</Label>
-      </Field>
-    </ConfigUI>
+    <Device type="custom" id="zone">
+        <Name>Zone</Name>
+        <ConfigUI>
+            <!-- The code will combine the partition number and the zone number 
+                and put them in the 'address' field so they show up in the UI.
+                See the validateDeviceConfigUi function. -->
+            <Field id="address" type="textField" defaultValue="unknown" hidden="true" />
+            <!-- We only allow user to select valid partition numbers, driven by this callback. -->          
+            <Field id="partitionNumber" type="menu" defaultValue="1">
+	            <List class="self" filter="N/A" method="partitionFilter"/>
+	            <Label>Partition:</Label>
+            </Field>
+            <!-- But, let user enter any zone number (> 0), even if that zone ends
+                 up never existing.  This way user can setup zones even if they can't 
+                 connect to the alarm panel and download the zone list into this plugin. -->
+            <Field id="zoneNumber" type="textField" defaultValue="">
+	            <Label>Zone:</Label>
+            </Field>
+        </ConfigUI>
+        <States>
+            <!-- Summary state suitable for showing in Indigo device summary. -->
+            <State id="zoneState" defaultValue="unavailable">
+	            <ValueType>
+                    <List>
+                        <Option value="unavailable">Unavailable</Option>
+                        <Option value="faulted">Faulted or Trouble</Option>
+                        <Option value="tripped">Tripped/Open</Option>
+                        <Option value="alarm">Alarm</Option>
+                        <Option value="disabled">Bypassed</Option>
+                        <Option value="enabled">Normal/Closed</Option>
+                    </List>
+                </ValueType>
+	            <TriggerLabel>Zone state is</TriggerLabel>
+	            <ControlPageLabel>Zone state</ControlPageLabel>
+            </State>
+            <State id="isNormal" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone is Normal</TriggerLabel>
+	            <ControlPageLabel>Zone Normal</ControlPageLabel>
+            </State>
+            <State id="isTripped" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone is Tripped</TriggerLabel>
+	            <ControlPageLabel>Zone Tripped</ControlPageLabel>
+            </State>
+            <State id="isFaulted" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone is Faulted</TriggerLabel>
+	            <ControlPageLabel>Zone Faulted</ControlPageLabel>
+            </State>
+            <State id="isAlarm" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone is in Alarm</TriggerLabel>
+	            <ControlPageLabel>Zone Alarm</ControlPageLabel>
+            </State>
+            <State id="isTrouble" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone has Trouble</TriggerLabel>
+	            <ControlPageLabel>Zone Trouble</ControlPageLabel>
+            </State>
+            <State id="isBypassed" defaultValue="False">
+	            <ValueType>Boolean</ValueType>
+	            <TriggerLabel>Zone is Bypassed</TriggerLabel>
+	            <ControlPageLabel>Zone Bypasses</ControlPageLabel>
+            </State>
 
-    <States>
-      <!-- Summary state suitable for showing in Indigo device summary. -->
-      <State id="zoneState" defaultValue="unavailable">
-	<ValueType>
-          <List>
-            <Option value="unavailable">Unavailable</Option>
-            <Option value="faulted">Faulted or Trouble</Option>
-            <Option value="tripped">Tripped/Open</Option>
-            <Option value="alarm">Alarm</Option>
-            <Option value="disabled">Bypassed</Option>
-            <Option value="enabled">Normal/Closed</Option>
-          </List>
-        </ValueType>
-	<TriggerLabel>Zone state is</TriggerLabel>
-	<ControlPageLabel>Zone state</ControlPageLabel>
-      </State>
-
-
-      <State id="isNormal" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone is Normal</TriggerLabel>
-	<ControlPageLabel>Zone Normal</ControlPageLabel>
-      </State>
-      <State id="isTripped" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone is Tripped</TriggerLabel>
-	<ControlPageLabel>Zone Tripped</ControlPageLabel>
-      </State>
-      <State id="isFaulted" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone is Faulted</TriggerLabel>
-	<ControlPageLabel>Zone Faulted</ControlPageLabel>
-      </State>
-      <State id="isAlarm" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone is in Alarm</TriggerLabel>
-	<ControlPageLabel>Zone Alarm</ControlPageLabel>
-      </State>
-      <State id="isTrouble" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone has Trouble</TriggerLabel>
-	<ControlPageLabel>Zone Trouble</ControlPageLabel>
-      </State>
-      <State id="isBypassed" defaultValue="False">
-	<ValueType>Boolean</ValueType>
-	<TriggerLabel>Zone is Bypassed</TriggerLabel>
-	<ControlPageLabel>Zone Bypasses</ControlPageLabel>
-      </State>
-
-      <!-- Keep these here, or move into properties? -->
-      <State id="zoneText" defaultValue="">
-        <ValueType>String</ValueType>
-        <TriggerLabel>Name</TriggerLabel>
-        <ControlPageLabel>Name is</ControlPageLabel>
-      </State>
-      <State id="zoneType" defaultValue="Unknown">
-        <ValueType>String</ValueType>
-        <TriggerLabel>Type</TriggerLabel>
-        <ControlPageLabel>Type is</ControlPageLabel>
-      </State>
-    </States>
-	
-    <UiDisplayStateId>zoneState</UiDisplayStateId>
-
-  </Device>
-
-
+            <!-- Keep these here, or move into properties? -->
+            <State id="zoneText" defaultValue="">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Name</TriggerLabel>
+                <ControlPageLabel>Name is</ControlPageLabel>
+            </State>
+            <State id="zoneType" defaultValue="Unknown">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Type</TriggerLabel>
+                <ControlPageLabel>Type is</ControlPageLabel>
+            </State>
+        </States>
+        <UiDisplayStateId>zoneState</UiDisplayStateId>
+    </Device>
 </Devices>
