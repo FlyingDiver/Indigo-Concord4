@@ -220,18 +220,15 @@
     <Device type="custom" id="zone">
         <Name>Zone</Name>
         <ConfigUI>
-            <!-- The code will combine the partition number and the zone number 
-                and put them in the 'address' field so they show up in the UI.
-                See the validateDeviceConfigUi function. -->
-            <Field id="address" type="textField" defaultValue="unknown" hidden="true" />
-            <!-- We only allow user to select valid partition numbers, driven by this callback. -->          
+			<Field id="SupportsOnState"       type="checkbox"  defaultValue="true"    hidden="true" />
+			<Field id="SupportsSensorValue"   type="checkbox"  defaultValue="false"   hidden="true" />
+			<Field id="SupportsStatusRequest" type="checkbox"  defaultValue="false"   hidden="true" />
+            <Field id="address"               type="textField" defaultValue="unknown" hidden="true" />
+
             <Field id="partitionNumber" type="menu" defaultValue="1">
 	            <List class="self" filter="N/A" method="partitionFilter"/>
 	            <Label>Partition:</Label>
             </Field>
-            <!-- But, let user enter any zone number (> 0), even if that zone ends
-                 up never existing.  This way user can setup zones even if they can't 
-                 connect to the alarm panel and download the zone list into this plugin. -->
             <Field id="zoneNumber" type="textField" defaultValue="">
 	            <Label>Zone:</Label>
             </Field>
@@ -295,6 +292,5 @@
                 <ControlPageLabel>Type is</ControlPageLabel>
             </State>
         </States>
-        <UiDisplayStateId>zoneState</UiDisplayStateId>
     </Device>
 </Devices>

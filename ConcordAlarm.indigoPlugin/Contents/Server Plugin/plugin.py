@@ -158,7 +158,7 @@ class Plugin(indigo.PluginBase):
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         indigo.PluginBase.__init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
         self.logger = Logger(lev=LOG_INFO)
-
+        
         self.panel = None
         self.panelDev = None
         self.panelInitialQueryDone = False
@@ -209,13 +209,16 @@ class Plugin(indigo.PluginBase):
         # defaults.
         self.processPluginConfigPrefs(pluginPrefs)
 
-        
+
     def __del__(self):
         indigo.PluginBase.__del__(self)
 
     def startup(self):
         self.logger.debug("startup called")
         self.logEvent("Plugin starting up", True)
+        
+        # hardcode for now, later change to make configurable
+        self.ignoredCodes = ["13.3", "18.5", "18.6"]
 
     def shutdown(self):
         self.logger.debug("shutdown called")
@@ -415,6 +418,14 @@ v        """
             self.refreshPanelState("Indigo panel device startup")
 
         elif dev.deviceTypeId == 'zone':
+        
+            # fix device properties to show correct UI in Indigo client, matches Devices.xml
+            newProps = dev.pluginProps
+            newProps["SupportsOnState"] = True
+            newProps["SupportsSensorValue"] = False
+            newProps["SupportsStatusRequest"] = False
+            dev.replacePluginPropsOnServer(newProps)
+
             zk = zonekey(dev)
             if zk in self.zoneDevs:
                 self.logger.warn("Zone device %s has a duplicate zone %d in partition %d, ignoring" % \
@@ -423,6 +434,7 @@ v        """
             self.zoneDevs[zk] = dev
             self.zoneKeysById[dev.id] = zk
             self.updateZoneDeviceState(dev, zk)
+            
 
         elif dev.deviceTypeId == 'partition':
             pk = partkey(dev)
@@ -975,6 +987,13 @@ v        """
         zone_dev.updateStateOnServer('isAlarm', ALARM in zone_state)
         zone_dev.updateStateOnServer('isTrouble', TROUBLE in zone_state)
         zone_dev.updateStateOnServer('isBypassed', BYPASSED in zone_state)
+        
+        zoneOn = (TRIPPED in zone_state) or (FAULTED in zone_state) or (ALARM in zone_state) or (TROUBLE in zone_state)
+        zone_dev.updateStateOnServer('onOffState', zoneOn)
+        if zoneOn:
+            zone_dev.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+        else:
+            zone_dev.updateStateImageOnServer(indigo.kStateImageSel.SensorOff)
 
         # Update the summary zoneState.  See Devices.xml to understand
         # how we map multiple state flags into a single state that
@@ -1182,38 +1201,44 @@ Message: %r
             part_num = msg['partition_number']
             source_type = msg['source_type']
             source_num = msg['source_number']
+                        
             alarm_code_str ="%d.%d" % (msg['alarm_general_type_code'], msg['alarm_specific_type_code'])
             alarm_desc = "%s / %s" % (msg['alarm_general_type'], msg['alarm_specific_type'])
             event_data = msg['event_specific_data']
 
-            self.logger.error("ALARM or TROUBLE on partition %d: Source is %s/%d; Alarm/Trouble is %s: %s; event data = %s" % (part_num, source_type, source_num, alarm_code_str, alarm_desc, event_data))
-
-            # Try to get a better name for the alarm source if it is a zone.
-            zk = (part_num, source_num)
-            if source_type == 'Zone' and zk in self.zones:
-                zone_name = self.zones[zk].get('zone_text', 'Unknown')
-                if zk in self.zoneDevs:
-                    source_desc = "Zone %d - Indigo zone %s, alarm zone %s" % \
-                        (source_num, self.zoneDevs[zk].name, zone_name)
-                else:
-                    source_desc = "Zone %d - alarm zone %s" % (source_num, zone_name)
+            # ignore certain alarm codes as the automation interface seems to generate them for no known reason
+            if alarm_code_str in self.ignoredCodes:
+                self.logger.debug(" Ignoring alarm code {}".format(alarm_code_str))
             else:
-                source_desc = "%s, number %d" % (source_type, source_num)
-            self.logger.error("ALARM or TROUBLE on partition %d: Source details: %s" % (part_num, source_desc))
-
-            if part_num in self.partDevs:
-                partDev = self.partDevs[part_num]
-                self.logger.debug("Updating Indigo partition device %d" % partDev.id)
-                partDev.updateStateOnServer('alarmSource', source_desc)
-                partDev.updateStateOnServer('alarmCode', alarm_code_str)
-                partDev.updateStateOnServer('alarmDescription', alarm_desc)
-                partDev.updateStateOnServer('alarmEventData', event_data)
-                self.logger.debug(" .... Done")
-            else:
-                self.logger.warn("No Indigo partition device for partition %d" % part_num)
             
-            msg['source_desc'] = source_desc
-            self.logEvent(msg, True)
+                self.logger.error("ALARM or TROUBLE on partition %d: Source is %s/%d; Alarm/Trouble is %s: %s; event data = %s" % (part_num, source_type, source_num, alarm_code_str, alarm_desc, event_data))
+
+                # Try to get a better name for the alarm source if it is a zone.
+                zk = (part_num, source_num)
+                if source_type == 'Zone' and zk in self.zones:
+                    zone_name = self.zones[zk].get('zone_text', 'Unknown')
+                    if zk in self.zoneDevs:
+                        source_desc = "Zone %d - Indigo zone %s, alarm zone %s" % \
+                            (source_num, self.zoneDevs[zk].name, zone_name)
+                    else:
+                        source_desc = "Zone %d - alarm zone %s" % (source_num, zone_name)
+                else:
+                    source_desc = "%s, number %d" % (source_type, source_num)
+                self.logger.error("ALARM or TROUBLE on partition %d: Source details: %s" % (part_num, source_desc))
+
+                if part_num in self.partDevs:
+                    partDev = self.partDevs[part_num]
+                    self.logger.debug("Updating Indigo partition device %d" % partDev.id)
+                    partDev.updateStateOnServer('alarmSource', source_desc)
+                    partDev.updateStateOnServer('alarmCode', alarm_code_str)
+                    partDev.updateStateOnServer('alarmDescription', alarm_desc)
+                    partDev.updateStateOnServer('alarmEventData', event_data)
+                    self.logger.debug(" .... Done")
+                else:
+                    self.logger.warn("No Indigo partition device for partition %d" % part_num)
+            
+                msg['source_desc'] = source_desc
+                self.logEvent(msg, True)
 
         elif cmd_id in ('CLEAR_IMAGE', 'EVENT_LOST'):
             self.refreshPanelState("Reacting to %s message" % cmd_id)
