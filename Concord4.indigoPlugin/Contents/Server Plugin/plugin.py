@@ -741,7 +741,10 @@ v        """
                                                 description=zone_type,
                                                 deviceTypeId="zone",
                                                 props={'partitionNumber': part_num, 
-                                                       'zoneNumber': zone_num})
+                                                       'zoneNumber': zone_num
+                                                       }
+                                                )
+
                 # Because these are custom device types they are not
                 # actually able to be shown in remote diplays like
                 # Indigo Touch.
@@ -1065,7 +1068,7 @@ v        """
             new_zone_state = msg['zone_state']
 
             if zk in self.zones:
-                self.logger.info("Updating zone %s with %s message, zone state=%r" % \
+                self.logger.debug("Updating zone %s with %s message, zone state=%r" % \
                                      (zone_name, cmd_id, msg['zone_state']))
                 zone_info = self.zones[zk]
                 old_zone_state = zone_info['zone_state']

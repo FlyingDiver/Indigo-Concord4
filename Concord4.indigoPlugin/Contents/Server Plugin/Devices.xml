@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Devices>
     <Device type="custom" id="panel">
-        <Name>Concord Alarm Panel</Name>
+        <Name>Alarm Panel</Name>
         <ConfigUI>
             <Field type="label" id="theLabel">
                 <Label>Concord alarm panel.</Label>
@@ -217,7 +217,7 @@
   -->
 
 
-    <Device type="custom" id="zone">
+    <Device type="sensor" id="zone">
         <Name>Zone</Name>
         <ConfigUI>
 			<Field id="SupportsOnState"       type="checkbox"  defaultValue="true"    hidden="true" />
