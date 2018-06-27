@@ -1255,17 +1255,20 @@ Message: %r
         if cmd_id == 'ARM_LEVEL':
             # Execute all arming level triggers that match this
             # message's partition and arming level.
+            part_num = msg['partition_number']
+            arm_level = PART_ARM_STATE_MAP.get(msg['arming_level_code'], 'unknown')
+            self.logger.debug("ARM_LEVEL cmd, part_num = {}, arm_level = {}".format(part_num, arm_level))
             for trigger in self.getTriggersForType(['armingLevel']):
-                part_num = msg['partition_number']
-                arm_level = PART_ARM_STATE_MAP.get(msg['arming_level_code'], 'unknown')
 
                 trig_part = any_if_blank(trigger.pluginProps['address'])
                 trig_level = any_if_blank(trigger.pluginProps['partitionState'])
+                self.logger.debug("ARM_LEVEL trigger, trig_part = {}, trig_level = {}".format(trig_part, trig_level))
 
                 part_match = (trig_part == 'any') or (int(trig_part) == part_num)
                 level_match = (trig_level == 'any') or (trig_level == arm_level)
                 
                 if part_match and level_match:
+                    self.logger.debug("ARM_LEVEL trigger matches, executing trigger {}".format(trigger.name))
                     indigo.trigger.execute(trigger)
 
         elif cmd_id == 'ALARM':
