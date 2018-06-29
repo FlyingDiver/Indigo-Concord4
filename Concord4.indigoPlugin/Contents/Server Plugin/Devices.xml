@@ -120,6 +120,12 @@
 	            <Label>Partition:</Label>
 	                <List class="self" filter="N/A" method="partitionFilter"/>
             </Field>
+            <Field id="ignored_codes" type="textField" defaultValue="">
+	            <Label>Ignored Alarm Codes:</Label>
+            </Field>
+            <Field id="ignored_note" type="label" fontSize="small" fontColor="darkgray">
+                <Label>Space separated list of alarm codes to ignore for this partition. Example: "13.3 18.5 18.6"</Label>
+            </Field>
         </ConfigUI>
         <States>
             <State id="partitionState" defaultValue="unknown">

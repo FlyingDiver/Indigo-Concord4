@@ -204,6 +204,9 @@ class Plugin(indigo.PluginBase):
         self.zoneMonitorEnabled = False
         self.zoneMonitorSendEmail = True
 
+        # Ignored codes can be defined for each partition.  This dict holds them.
+        self.ignoredCodes =  {}
+        
         # Process settings from the Config UI after initialising all
         # the member variables, in case we want to override the
         # defaults.
@@ -217,9 +220,6 @@ class Plugin(indigo.PluginBase):
         self.logger.debug("startup called")
         self.logEvent("Plugin starting up", True)
         
-        # hardcode for now, later change to make configurable
-        self.ignoredCodes = ["13.3", "18.5", "18.6"]
-
     def shutdown(self):
         self.logger.debug("shutdown called")
         self.logEvent("Plugin stopping", True)
@@ -444,6 +444,10 @@ v        """
                 return
             self.partDevs[pk] = dev
             self.updatePartitionDeviceState(dev, pk)
+            
+            self.ignoredCodes[pk] = dev.pluginProps["ignored_codes"].split()
+            self.logger.debug("ignored_codes: %s" % str(self.ignoredCodes))
+
 
         elif dev.deviceTypeId == 'touchpad':
             pk = partkey(dev)
@@ -1210,7 +1214,7 @@ Message: %r
             event_data = msg['event_specific_data']
 
             # ignore certain alarm codes as the automation interface seems to generate them for no known reason
-            if alarm_code_str in self.ignoredCodes:
+            if alarm_code_str in self.ignoredCodes[part_num]:
                 self.logger.debug(" Ignoring alarm code {}".format(alarm_code_str))
             else:
             
