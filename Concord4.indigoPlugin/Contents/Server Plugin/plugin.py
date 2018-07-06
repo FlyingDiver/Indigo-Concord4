@@ -355,7 +355,8 @@ v        """
             if address < 1 or address > concord.CONCORD_MAX_ZONE:
                 errors['address'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
             if address in self.partDevs:
-                errors['address'] = "Another partition device has the same number"
+                if int(self.partDevs[address].id) != devId:
+                    errors['address'] = "Another partition device has the same number"
 
         elif typeId == 'touchpad':
             try: address = int(valuesDict['address'])
@@ -376,7 +377,8 @@ v        """
             if zone < 1:
                 errors['zoneNumber'] = "Zone must be greater than 0"
             if (part, zone) in self.zoneDevs:
-                errors['zoneNumber'] = "Another zone device in this partition has the same number"
+                if int(self.zoneDevs[(part, zone)].id) != devId:
+                    errors['zoneNumber'] = "Another zone device in this partition has the same number"
             valuesDict['address'] = "%d/%d" % (zone, part)
 
         else:
