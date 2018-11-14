@@ -438,6 +438,59 @@ class AlarmPanelInterface(object):
                 loop_last_print_at = datetime.now()
 
 
+    # cut down version of message_loop that only checks the messages each way once then returns
+    
+    def message_check(self):
+        
+        # 
+        # Handle any synthetic messages and loop them back to us.
+        #
+        if not self.fake_rx_queue.empty():
+            no_inputs = False
+            msg = self.fake_rx_queue.get()
+            self.logger.debug("Received synthetic message")
+            # Don't need to confirm checksum as we computed it
+            # ourselves!
+            self.handle_message(msg)
+
+        # 
+        # Handle incoming messages.
+        #
+        if self.serial_interface.wait_for_message_start() == MSG_START:
+
+            msg_ok = True
+            try:
+                msg = self.serial_interface.read_next_message()
+            except CommException, ex:
+                self.send_nak()
+                self.logger.error(repr(ex))
+                continue
+
+            if len(msg) < 3:
+                # Message too short, need at least length byte,
+                # command byte, and checksum byte.
+                self.send_nak()
+                self.logger.error("Message too short: %r" % encode_message_to_ascii(msg))
+
+            if validate_message_checksum(msg):
+                self.send_ack()
+                self.handle_message(msg)
+            else:
+                # Bad checksum
+                self.send_nak()
+                self.logger.error("Bad checksum for message %r" % encode_message_to_ascii(msg))
+
+        # 
+        # Send outgoing messages.
+        #
+
+        if self.tx_pending is not None and self.tx_timeout_exceded():
+            self.maybe_resend_message("timeout")
+            
+        if self.tx_pending is None and not self.tx_queue.empty():
+            self.send_message(self.tx_queue.get())
+
+
     def handle_message(self, msg):
         # Assume we have a good message here.  Command code will
         # either be one or two bytes at offset 1.

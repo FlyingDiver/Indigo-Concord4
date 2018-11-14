@@ -527,7 +527,8 @@ v        """
             while True:
                 while self.panel is None:
                     self.sleep(1)
-                self.panel.message_loop()
+                self.panel.message_check()
+                self.sleep(0.5)
 
         except self.StopThread:
             self.logger.debug("Got StopThread in runConcurrentThread()")
