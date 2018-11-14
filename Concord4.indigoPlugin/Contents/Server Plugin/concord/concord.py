@@ -464,21 +464,20 @@ class AlarmPanelInterface(object):
             except CommException, ex:
                 self.send_nak()
                 self.logger.error(repr(ex))
-                continue
-
-            if len(msg) < 3:
-                # Message too short, need at least length byte,
-                # command byte, and checksum byte.
-                self.send_nak()
-                self.logger.error("Message too short: %r" % encode_message_to_ascii(msg))
-
-            if validate_message_checksum(msg):
-                self.send_ack()
-                self.handle_message(msg)
             else:
-                # Bad checksum
-                self.send_nak()
-                self.logger.error("Bad checksum for message %r" % encode_message_to_ascii(msg))
+                if len(msg) < 3:
+                    # Message too short, need at least length byte,
+                    # command byte, and checksum byte.
+                    self.send_nak()
+                    self.logger.error("Message too short: %r" % encode_message_to_ascii(msg))
+
+                if validate_message_checksum(msg):
+                    self.send_ack()
+                    self.handle_message(msg)
+                else:
+                    # Bad checksum
+                    self.send_nak()
+                    self.logger.error("Bad checksum for message %r" % encode_message_to_ascii(msg))
 
         # 
         # Send outgoing messages.
