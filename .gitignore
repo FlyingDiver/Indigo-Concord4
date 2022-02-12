@@ -1,4 +1,14 @@
 
+<<<<<<< Updated upstream
 Concord4.indigoPlugin/.idea/
 
 .DS_Store
+=======
+.DS_Store
+
+.github/
+
+Concord4.indigoPlugin/.idea/
+>>>>>>> Stashed changes
+
+Concord4.indigoPlugin/Contents/Server Plugin/concord/__pycache__/

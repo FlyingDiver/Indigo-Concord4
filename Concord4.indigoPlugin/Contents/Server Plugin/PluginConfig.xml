@@ -1,24 +1,16 @@
 <?xml version="1.0"?>
 <PluginConfig>
     <Field type="serialport" id="panelSerialPort" />
-    <Field type="menu" id="logLevel" defaultValue="info">
-        <Label>Logging level</Label>
+    <Field id="logLevel" type="menu" defaultValue="20">
+        <Label>Event Logging Level:</Label>
         <List>
-            <Option value="error">Errors Only</Option>
-            <Option value="warn">Warnings and above</Option>
-            <Option value="info">Informational and above</Option>
-            <Option value="debug">Debug information and above</Option>
-            <Option value="debugVerbose">Overly-detailed debug info and above</Option>
+            <Option value="5">Detailed Debugging Messages</Option>
+            <Option value="10">Debugging Messages</Option>
+            <Option value="20">Informational Messages</Option>
+            <Option value="30">Warning Messages</Option>
+            <Option value="40">Error Messages</Option>
+            <Option value="50">Critical Errors Only</Option>
         </List>
-    </Field>
-    <Field type="textfield" id="reportEmail">
-        <Label>Email reports</Label>
-    </Field>
-    <Field type="textfield" id="logDays" default="5">
-        <Label>Log size (days)</Label>
-    </Field>
-    <Field type="textfield" id="errLogDays" default="30">
-        <Label>Error log size (days)</Label>
     </Field>
     <Field type="checkbox" id="keepAlive">
         <Label>Use keep-alive monitoring</Label>

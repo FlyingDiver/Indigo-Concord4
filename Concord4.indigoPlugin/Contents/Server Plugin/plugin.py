@@ -5,6 +5,7 @@ Main plugin driver code for Indigo plugin.
 import os
 import sys
 import time
+import logging
 
 from collections import deque
 from datetime import datetime
@@ -15,116 +16,64 @@ from concord.concord_commands import STAR, HASH, TRIPPED, FAULTED, ALARM, TROUBL
 # Note: the "indigo" module is automatically imported and made
 # available inside our global name space by the host process.
 
-# Default length of internal event log, in days.  Note that this is
-# the internal event log, as opposed to the logging of messages into
-# the Indigo system log.
-DEF_LOG_DAYS = 5
-DEF_ERR_LOG_DAYS = 30
-
-
-#
-# Logging.  Roll our own because we want two levels of DEBUG.
-#
-LOG_ERR    = 0
-LOG_WARN   = 1
-LOG_INFO   = 2
-LOG_DEBUG  = 3
-LOG_DEBUGV = 4 # verbose debug
-
-LOG_PREFIX = {
-    LOG_ERR: "ERROR",
-    LOG_WARN: "WARNING",
-    LOG_INFO: "INFO",
-    LOG_DEBUG: "DEBUG",
-    LOG_DEBUGV: "DEBUG VERBOSE",
-}
-
-LOG_CONFIG = {
-    'error': LOG_ERR,
-    'warn': LOG_WARN,
-    'info': LOG_INFO,
-    'debug': LOG_DEBUG,
-    'debugVerbose': LOG_DEBUGV,
-}
-
-class Logger(object):
-    def __init__(self, lev=LOG_INFO):
-        self.log_fn = indigo.server.log
-        self.level = lev
-    def set_level(self, lev):
-        assert lev >= 0 and lev <= LOG_DEBUGV
-        self.level = lev
-    def log(self, msg, level=LOG_INFO):
-        if level == LOG_ERR:
-            indigo.server.log(msg, isError=True)
-        elif level <= self.level:
-            indigo.server.log("[%s] %s" % (LOG_PREFIX[level], msg))
-    def error(self, msg): self.log(msg, level=LOG_ERR)
-    def warn(self, msg): self.log(msg, level=LOG_WARN)
-    def info(self, msg): self.log(msg, level=LOG_INFO)
-    def debug(self, msg): self.log(msg, level=LOG_DEBUG)
-    def debug_verbose(self, msg): self.log(msg, level=LOG_DEBUGV)
-    def log_always(self, msg): indigo.server.log(msg)
-
 def zonekey(zoneDev):
     """ Return internal key for supplied Indigo zone device. """
     assert zoneDev.deviceTypeId == 'zone'
     return (int(zoneDev.pluginProps['partitionNumber']),
             int(zoneDev.pluginProps['zoneNumber']))
-    
+
 def partkey(partDev):
     """ Return internal key for supplied Indigo partition or touchpad device. """
     assert partDev.deviceTypeId in ('partition', 'touchpad')
     return int(partDev.address)
 
 def any_if_blank(s):
-    if s == '': return 'any'
-    else: return s
+    if s == '':
+        return 'any'
+    else:
+        return s
 
 def isZoneErrState(state_list):
-    for err_state in [ ALARM, FAULTED, TROUBLE, BYPASSED ]:
+    for err_state in [ALARM, FAULTED, TROUBLE, BYPASSED]:
         if err_state in state_list:
-            return True;
+            return True
     return False
 
 def zoneStateChangedExceptTripped(old, new):
-    old = list(sorted(old)).remove(TRIPPED)
-    new = list(sorted(new)).remove(TRIPPED)
+    old = list(sorted(old)).pop(TRIPPED)
+    new = list(sorted(new)).pop(TRIPPED)
     return old != new
-    
 
 
 #
 # Touchpad display when no data available
 #
+
 NO_DATA = '<NO DATA>'
 
 #
 # Keypad sequences for various actions
 #
-KEYPRESS_SILENT = [ 5 ]
-KEYPRESS_ARM_STAY = [ 2 ]
-KEYPRESS_ARM_AWAY = [ 0x27 ] # 'keyfob arm away (no exit door trip required)'
-KEYPRESS_NO_DELAY = [ 4 ]
-KEYPRESS_DISARM = [ 1 ]
-KEYPRESS_BYPASS = [ 0xb ] # '#'
-KEYPRESS_TOGGLE_CHIME = [ 7, 1 ]
+KEYPRESS_SILENT = [5]
+KEYPRESS_ARM_STAY = [2]
+KEYPRESS_ARM_AWAY = [0x27]  # 'keyfob arm away (no exit door trip required)'
+KEYPRESS_NO_DELAY = [4]
+KEYPRESS_DISARM = [1]
+KEYPRESS_BYPASS = [0xb]  # '#'
+KEYPRESS_TOGGLE_CHIME = [7, 1]
 
-KEYPRESS_EXIT_PROGRAM = [ STAR, 0, 0, HASH ]
-
-
-
+KEYPRESS_EXIT_PROGRAM = [STAR, 0, 0, HASH]
 
 #
 # XML configuration filters
 # 
-PART_FILTER = [(str(p), str(p)) for p in range(1, concord.CONCORD_MAX_ZONE+1)]
+PART_FILTER = [(str(p), str(p)) for p in range(1, concord.CONCORD_MAX_ZONE + 1)]
 PART_FILTER_TRIGGER = [('any', 'Any')] + PART_FILTER
 
-PART_STATE_FILTER = [ 
+PART_STATE_FILTER = [
     ('unknown', 'Unknown'),
-    ('ready', 'Ready'), # aka 'off'
-    ('unready', 'Not Ready'), # Not actually a Concord state 
+    ('ready', 'Ready'),  # aka 'off'
+    ('unready', 'Not Ready'),  # Not actually a Concord state
     ('zone_test', 'Phone Test'),
     ('phone_test', 'Phone Test'),
     ('sensor_test', 'Sensor Test'),
@@ -132,7 +81,7 @@ PART_STATE_FILTER = [
     ('away', 'Armed Away'),
     ('night', 'Armed Night'),
     ('silent', 'Armed Silent'),
-    ]
+]
 PART_STATE_FILTER_TRIGGER = [('any', 'Any')] + PART_STATE_FILTER
 
 # Different messages (i.e. PART_DATA and ARM_LEVEL) may
@@ -141,15 +90,15 @@ PART_STATE_FILTER_TRIGGER = [('any', 'Any')] + PART_STATE_FILTER
 # supports.
 PART_ARM_STATE_MAP = {
     # Original arming code -> Partition device state
-    -1: 'unknown', # Internal to plugin
-    0: 'zone_test', # 'Zone Test', ARM_LEVEL only
-    1: 'ready', # 'Off',
-    2: 'stay', # 'Home/Perimeter',
-    3: 'away', # 'Away/Full',
-    4: 'night', # 'Night', ARM_LEVEL only
-    5: 'silent', # 'Silent', ARM_LEVEL only
-    8: 'phone_test', # 'Phone Test', PART_DATA only
-    9: 'sensor_test', # 'Sensor Test', PART_DATA only
+    -1: 'unknown',  # Internal to plugin
+    0: 'zone_test',  # 'Zone Test', ARM_LEVEL only
+    1: 'ready',  # 'Off',
+    2: 'stay',  # 'Home/Perimeter',
+    3: 'away',  # 'Away/Full',
+    4: 'night',  # 'Night', ARM_LEVEL only
+    5: 'silent',  # 'Silent', ARM_LEVEL only
+    8: 'phone_test',  # 'Phone Test', PART_DATA only
+    9: 'sensor_test',  # 'Sensor Test', PART_DATA only
 }
 
 
@@ -157,82 +106,60 @@ class Plugin(indigo.PluginBase):
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         indigo.PluginBase.__init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
-        self.logger = Logger(lev=LOG_INFO)
-        
+        pfmt = logging.Formatter('%(asctime)s.%(msecs)03d\t[%(levelname)8s] %(name)20s.%(funcName)-25s%(msg)s', datefmt='%Y-%m-%d %H:%M:%S')
+        self.plugin_file_handler.setFormatter(pfmt)
+        self.logLevel = int(pluginPrefs.get("logLevel", logging.INFO))
+        self.indigo_log_handler.setLevel(self.logLevel)
+        self.logger.debug(f"logLevel = {self.logLevel}")
+
         self.panel = None
         self.panelDev = None
         self.panelInitialQueryDone = False
-    
+
         # Zones are keyed by (partitition number, zone number)
-        self.zones = { } # zone key -> dict of zone info, i.e. output of cmd_zone_data
-        self.zoneDevs = { } # zone key -> active Indigo zone device
-        self.zoneKeysById = { } # zone device ID -> zone key
+        self.zones = {}  # zone key -> dict of zone info, i.e. output of cmd_zone_data
+        self.zoneDevs = {}  # zone key -> active Indigo zone device
+        self.zoneKeysById = {}  # zone device ID -> zone key
 
         # Partitions are keyed by partition number
-        self.parts = { } # partition number -> partition info
-        self.partDevs = { } # partition number -> active Indigo partition device
-        self.partKeysById = { } # partition device ID -> partition number
-        
+        self.parts = {}  # partition number -> partition info
+        self.partDevs = {}  # partition number -> active Indigo partition device
+        self.partKeysById = {}  # partition device ID -> partition number
+
         # Touchpads don't actually have any of their own internal
         # data; they just mirror their configured partition.  To aid
         # that, we will attach touchpad display information to the
         # internal partition state.
-        self.touchpadDevs = { } # partition number -> (touchpad device ID -> Indigo touchpad device)
+        self.touchpadDevs = {}  # partition number -> (touchpad device ID -> Indigo touchpad device)
 
         # Triggers are keyed by Indigo trigger ID; these are used to
         # fire off the events described in our Events.xml.
-        self.triggers = { }
-
-        # We maintain a regular event log, and an 'error' event log
-        # with only exception-type information.  Each has an
-        # associated number of days for which it retains events (from
-        # oldest to most recent event in log).
-        #
-        # These are logs of events kept internally to the plugin, as
-        # opposed to the log messages which are printed/sent to Indigo
-        # and controlled by the 'log level'
-        self.eventLog = deque()
-        self.errLog = deque()
-        self.eventLogDays = 0
-        self.errLogDays = 0
-
-        # If a reporting email address is specified, we will try to
-        # send emails about exception events.
-        self.reportEmail = None
+        self.triggers = {}
 
         # Zone monitor configurations
         self.zoneMonitorEnabled = False
-        self.zoneMonitorSendEmail = True
+
+        self.panel_command_names = {}  # code -> display-friendly name
 
         # Ignored codes can be defined for each partition.  This dict holds them.
-        self.ignoredCodes =  {}
-        
-        # Process settings from the Config UI after initialising all
-        # the member variables, in case we want to override the
-        # defaults.
-        self.processPluginConfigPrefs(pluginPrefs)
+        self.ignoredCodes = {}
 
+        self.serialPortUrl = self.getSerialPortUrl(pluginPrefs, 'panelSerialPort')
+        self.logger.info(f"Serial port is: {self.serialPortUrl}")
 
-    def __del__(self):
-        indigo.PluginBase.__del__(self)
+        self.keepAlive = pluginPrefs.get('keepAlive', False)
 
     def startup(self):
         self.logger.debug("startup called")
-        self.logEvent("Plugin starting up", True)
-        
+
     def shutdown(self):
         self.logger.debug("shutdown called")
-        self.logEvent("Plugin stopping", True)
-
-    def sendEmail(self, subject, body):
-        if self.reportEmail is None:
-            return
-        indigo.server.sendEmailTo(self.reportEmail, subject=subject, body=body)
 
     #
     # Internal event log
     #
-    def _logEvent(self, eventInfo, eventTime, q, maxAge):
+    @staticmethod
+    def _logEvent(eventInfo, eventTime, q, maxAge):
         pair = (eventTime, eventInfo)
         q.append(pair)
         while len(q) > 0:
@@ -249,26 +176,26 @@ class Plugin(indigo.PluginBase):
             self._logEvent(eventInfo, event_time, self.errLog, self.errLogDays)
 
     def logEventZone(self, zoneName, zoneState, prevZoneState, logMessage, cmd, cmdData, isErr=False):
-        d = { 'zone_name': zoneName,
-              'zone_state': zoneState,
-              'prev_zone_state': prevZoneState,
-              'message': logMessage,
-              'command': cmd,
-              'command_data': cmdData }
+        d = {'zone_name': zoneName,
+             'zone_state': zoneState,
+             'prev_zone_state': prevZoneState,
+             'message': logMessage,
+             'command': cmd,
+             'command_data': cmdData}
         self.logEvent(d, isErr)
 
     #
     # Triggers
     #
     def triggerStartProcessing(self, trigger):
-        self.logger.debug("Adding Trigger %d - %s" % (trigger.id, trigger.name))
+        self.logger.debug(f"Adding Trigger {trigger.id:d} - {trigger.name}")
         assert trigger.id not in self.triggers
         self.triggers[trigger.id] = trigger
- 
+
     def triggerStopProcessing(self, trigger):
-        self.logger.debug("Removing Trigger %d - %s" % (trigger.id, trigger.name))
+        self.logger.debug(f"Removing Trigger {trigger.id:d} - {trigger.name}")
         assert trigger.id in self.triggers
-        del self.triggers[trigger.id] 
+        del self.triggers[trigger.id]
 
     def getTriggersForType(self, triggerTypeIds):
         """ 
@@ -276,7 +203,7 @@ class Plugin(indigo.PluginBase):
         to check.  We will give back the list of those types of
         triggers we know about in a deterministic order.
 v        """
-        t = [ ]
+        t = []
         for tid, trigger in sorted(self.triggers.iteritems()):
             if trigger.pluginTypeId in triggerTypeIds:
                 t.append(trigger)
@@ -286,56 +213,25 @@ v        """
     # Plugin prefs methods
     #
     def validatePrefsConfigUi(self, valuesDict):
-        self.logger.debug("Validating prefs: %r" % (valuesDict))
+        self.logger.debug(f"Validating prefs: {valuesDict!r}")
         errorsDict = indigo.Dict()
         self.validateSerialPortUi(valuesDict, errorsDict, "panelSerialPort")
-        
-        # Put other config UI validation here -- add errors to errorDict.
-        try: logDays = int(valuesDict['logDays'])
-        except ValueError: logDays = -1
-        if logDays < 0:
-            errorsDict['logDays'] = "Log size must be integer >= 0 days"
-
-        try: errLogDays = int(valuesDict['errLogDays'])
-        except ValueError: errLogDays = -1
-        if logDays < 0:
-            errorsDict['errLogDays'] = "Error log size must be integer >= 0 days"
-
-        email = valuesDict['reportEmail']
-        if email.strip() != '' and '@' not in email:
-            errorsDict['reportEmail'] = "Report email should be blank or a valid email address"
 
         if len(errorsDict) > 0:
             # Some UI fields are not valid, return corrected fields and error messages (client
             # will not let the dialog window close).
-            return (False, valuesDict, errorsDict)
+            return False, valuesDict, errorsDict
 
-        return (True, valuesDict)
+        return True, valuesDict
 
     def closedPrefsConfigUi(self, valuesDict, userCancelled):
         self.logger.debug("Closed prefs config...")
         if userCancelled:
             return
-        self.processPluginConfigPrefs(valuesDict)
 
-    def processPluginConfigPrefs(self, pluginPrefsDict):
-        self.logger.debug("Loading plugin prefs...")
-        self.serialPortUrl = self.getSerialPortUrl(pluginPrefsDict, 'panelSerialPort')        
-        self.logger.info("Serial port is: %s" % self.serialPortUrl)
-        # Need to keep and reconfigure same logger object as we have
-        # gone and passed it off to subsystems like the
-        # AlarmPanelInterface.
-        self.logger.set_level(LOG_CONFIG.get(pluginPrefsDict.get('logLevel', 'info'), LOG_INFO))
-        self.keepAlive = pluginPrefsDict.get('keepAlive', False)
-        self.reportEmail = pluginPrefsDict.get('reportEmail', '')
-        if self.reportEmail.strip() == '':
-            self.reportEmail = None
-        self.eventLogDays = int(pluginPrefsDict.get('logDays', DEF_LOG_DAYS))
-        self.errLogDays = int(pluginPrefsDict.get('errLogDays', DEF_ERR_LOG_DAYS))
-        self.logger.log_always("New prefs: Keep Alive=%r, Log Level=%s, Report Email=%s, Log days=%d, Err log days=%d" % \
-                                   (self.keepAlive, LOG_PREFIX[self.logger.level], self.reportEmail,
-                                    self.eventLogDays, self.errLogDays))
-
+        self.serialPortUrl = self.getSerialPortUrl(valuesDict, 'panelSerialPort')
+        self.logger.info(f"Serial port is: {self.serialPortUrl}")
+        self.keepAlive = valuesDict.get('keepAlive', False)
     #
     # Device methods
     #
@@ -350,8 +246,10 @@ v        """
             valuesDict['address'] = self.serialPortUrl
 
         elif typeId == 'partition':
-            try: address = int(valuesDict['address'])
-            except ValueError: address = -1
+            try:
+                address = int(valuesDict['address'])
+            except ValueError:
+                address = -1
             if address < 1 or address > concord.CONCORD_MAX_ZONE:
                 errors['address'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
             if address in self.partDevs:
@@ -359,8 +257,10 @@ v        """
                     errors['address'] = "Another partition device has the same number"
 
         elif typeId == 'touchpad':
-            try: address = int(valuesDict['address'])
-            except ValueError: address = -1
+            try:
+                address = int(valuesDict['address'])
+            except ValueError:
+                address = -1
             if address < 1 or address > concord.CONCORD_MAX_ZONE:
                 errors['address'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
             # We will let you multiple touchpads for the same
@@ -368,10 +268,14 @@ v        """
             # mirrors 'real life'
 
         elif typeId == 'zone':
-            try: part = int(valuesDict['partitionNumber'])
-            except ValueError: part = -1
-            try: zone = int(valuesDict['zoneNumber'])
-            except ValueError: zone = -1
+            try:
+                part = int(valuesDict['partitionNumber'])
+            except ValueError:
+                part = -1
+            try:
+                zone = int(valuesDict['zoneNumber'])
+            except ValueError:
+                zone = -1
             if part < 1 or part > concord.CONCORD_MAX_ZONE:
                 errors['partitionNumber'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
             if zone < 1:
@@ -384,9 +288,8 @@ v        """
         else:
             raise Exception("Unknown device type %s" % typeId)
         if len(errors) > 0:
-            return (False, valuesDict, errors)
-        return (True, valuesDict)
-
+            return False, valuesDict, errors
+        return True, valuesDict
 
     def deviceStartComm(self, dev):
         self.logger.debug("Device start comm: %s, %s, %s" % (dev.name, dev.id, dev.deviceTypeId))
@@ -403,7 +306,7 @@ v        """
             self.panelDev = dev
             try:
                 self.panel = concord.AlarmPanelInterface(self.serialPortUrl, 0.5, self.logger)
-            except Exception, ex:
+            except Exception as ex:
                 dev.updateStateOnServer("panelState", "faulted")
                 dev.setErrorStateOnServer("Unable to connect")
                 self.logger.error("Unable to start alarm panel interface: %s" % str(ex))
@@ -411,7 +314,6 @@ v        """
 
             # Set the plugin object to handle all incoming commands
             # from the panel via the messageHandler() method.
-            self.panel_command_names = { } # code -> display-friendly name
             for code, cmd_info in concord_commands.RX_COMMANDS.iteritems():
                 cmd_id, cmd_name = cmd_info[0], cmd_info[1]
                 self.panel_command_names[cmd_id] = cmd_name
@@ -420,7 +322,7 @@ v        """
             self.refreshPanelState("Indigo panel device startup")
 
         elif dev.deviceTypeId == 'zone':
-        
+
             # fix device properties to show correct UI in Indigo client, matches Devices.xml
             newProps = dev.pluginProps
             newProps["SupportsOnState"] = True
@@ -430,45 +332,40 @@ v        """
 
             zk = zonekey(dev)
             if zk in self.zoneDevs:
-                self.logger.warn("Zone device %s has a duplicate zone %d in partition %d, ignoring" % \
-                                     (dev.name, zk[1], zk[0]))
+                self.logger.warn(f"Zone device {dev.name} has a duplicate zone {zk[1]:d} in partition {zk[0]:d}, ignoring")
                 return
             self.zoneDevs[zk] = dev
             self.zoneKeysById[dev.id] = zk
             self.updateZoneDeviceState(dev, zk)
-            
 
         elif dev.deviceTypeId == 'partition':
             pk = partkey(dev)
             if pk in self.partDevs:
-                self.logger.warn("Partition device %s has a duplicate partition number %d, ignoring" % \
-                               (dev.name, pk))
+                self.logger.warn(f"Partition device {dev.name} has a duplicate partition number {pk:d}, ignoring")
                 return
             self.partDevs[pk] = dev
             self.updatePartitionDeviceState(dev, pk)
-            
-            self.ignoredCodes[pk] = dev.pluginProps["ignored_codes"].split()
-            self.logger.debug("ignored_codes: %s" % str(self.ignoredCodes))
 
+            self.ignoredCodes[pk] = dev.pluginProps["ignored_codes"].split()
+            self.logger.debug(f"ignored_codes: {str(self.ignoredCodes)}")
 
         elif dev.deviceTypeId == 'touchpad':
             pk = partkey(dev)
             if pk not in self.touchpadDevs:
-                self.touchpadDevs[pk] = { }
+                self.touchpadDevs[pk] = {}
             self.touchpadDevs[pk][dev.id] = dev
             self.updateTouchpadDeviceState(dev, pk)
 
         else:
-            raise Exception("Unknown device type: %r" % dev.deviceTypeId)
-
+            raise Exception(f"Unknown device type: {dev.deviceTypeId!r}")
 
     def deviceStopComm(self, dev):
-        self.logger.debug("Device stop comm: %s, %s, %s" % (dev.name, dev.id, dev.deviceTypeId))
+        self.logger.debug(f"Device stop comm: {dev.name}, {dev.id}, {dev.deviceTypeId}")
 
         if dev.deviceTypeId == "panel":
-            self.logEvent("Stopping panel device %r" % dev.name, True)
+            self.logEvent(f"Stopping panel device {dev.name!r}", True)
             if self.panelDev is None or self.panelDev.id != dev.id:
-                self.logger.error("Stopping a panel we don't know about at device id %r" % dev.id)
+                self.logger.error(f"Stopping a panel we don't know about at device id {dev.id!r}")
                 raise Exception("Extra panel device")
             # AlarmPanel object may never have been successfully
             # started (e.g. was unable to open serial port in the
@@ -478,44 +375,44 @@ v        """
             self.panel = None
             self.panelDev = None
             self.panelInitialQueryDone = False
-            
+
         elif dev.deviceTypeId == "zone":
             zk = zonekey(dev)
             if zk not in self.zoneDevs:
-                self.logger.warn("Zone device %s - zone %d partition %d - is not known, ignoring" % \
-                             (dev.name, zk[1], zk[0]))
+                self.logger.warn(f"Zone device {dev.name} - zone {zk[1]:d} partition {zk[0]:d} - is not known, ignoring")
                 return
             known_dev = self.zoneDevs[zk]
             if dev.id != known_dev.id:
-                self.logger.warn("Zone device id %d does not match id %d we already know about for zone %d, partition %d, ignoring" % (dev.id, known_dev.id, zk[1], zk[0]))
+                self.logger.warn(
+                    f"Zone device id {dev.id} does not match id {known_dev.id} we already know about for zone {zk[1]}, partition {zk[0]}, ignoring")
                 return
-            self.logger.debug("Deleting zone dev %d" % dev.id)
+            self.logger.debug(f"Deleting zone dev {dev.id:d}")
             del self.zoneDevs[zk]
 
         elif dev.deviceTypeId == 'partition':
             pk = partkey(dev)
             if pk not in self.partDevs:
-                self.logger.warn("Partition device %s - partition %d - is not known, ignoring" % (dev.name, pk))
+                self.logger.warn(f"Partition device {dev.name} - partition {pk:d} - is not known, ignoring")
                 return
             known_dev = self.partDevs[pk]
             if dev.id != known_dev.id:
-                self.logger.warn("Partition device id %d does not match id %d we already know about for partition %d, ignoring" % (dev.id, known_dev.id, pk))
+                self.logger.warn(
+                    f"Partition device id {dev.id:d} does not match id {known_dev.id:d} we already know about for partition {pk:d}, ignoring")
                 return
-            self.logger.debug("Deleting partition dev %d" % dev.id)
+            self.logger.debug(f"Deleting partition dev {dev.id:d}")
             del self.partDevs[pk]
 
         elif dev.deviceTypeId == 'touchpad':
             pk = partkey(dev)
             if pk not in self.partDevs:
-                self.logger.warn("Touchpad device %s - partition %d - is not known, ignoring" % (dev.name, pk))       
+                self.logger.warn(f"Touchpad device {dev.name} - partition {pk:d} - is not known, ignoring")
             if dev.id not in self.touchpadDevs[pk]:
-                self.logger.warn("Touchpad device id %d is not known" % dev.id)
+                self.logger.warn(f"Touchpad device id {dev.id:d} is not known")
             else:
                 del self.touchpadDevs[pk][dev.id]
 
         else:
-            raise Exception("Unknown device type: %r" % dev.deviceTypeId)
-
+            raise Exception(f"Unknown device type: {dev.deviceTypeId!r}")
 
     def runConcurrentThread(self):
         try:
@@ -532,7 +429,7 @@ v        """
 
         except self.StopThread:
             self.logger.debug("Got StopThread in runConcurrentThread()")
-            pass    
+            pass
 
     def refreshPanelState(self, reason):
         """
@@ -549,7 +446,6 @@ v        """
         self.panel.request_all_equipment()
         self.panel.request_dynamic_data_refresh()
         self.panelInitialQueryDone = False
-        
 
     def isReadyToArm(self, partition_num):
         """ 
@@ -563,12 +459,14 @@ v        """
         # TODO: check all the zones, etc.
         return True, "Partition ready to arm"
 
-    def checkPartition(self, valuesDict, errorsDict):
+    @staticmethod
+    def checkPartition(valuesDict, errorsDict):
         try:
             part = int(valuesDict['partition'])
-        except ValueError: part = -1
+        except ValueError:
+            part = -1
         if part < 1 or part > concord.CONCORD_MAX_ZONE:
-            errorsDict['partition'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
+            errorsDict['partition'] = f"Partition must be set to a valid value (1-{concord.CONCORD_MAX_ZONE:d})"
         return part
 
     #
@@ -597,10 +495,10 @@ v        """
         if len(errors) > 0:
             return False, valuesDict, errors
 
-        keys = [ ]
+        keys = []
         if arm_silent:
             keys += KEYPRESS_SILENT
-    
+
         if action == 'stay':
             keys += KEYPRESS_ARM_STAY
         elif action == 'away':
@@ -613,39 +511,41 @@ v        """
 
         try:
             self.panel.send_keypress(keys, part)
-        except Exception, ex:
-            self.logger.error("Problem trying to arm action=%r, silent=%r, bypass=%r" % \
-                                  (action, arm_silent, bypass))
+        except Exception as ex:
+            self.logger.error(f"Problem trying to arm action={action!r}, silent={arm_silent!r}, bypass={bypass!r}")
             self.logger.error(str(ex))
             errors['partition'] = str(ex)
             return False, valuesDict, errors
-        
+
         return True, valuesDict
 
-
-    def strToCode(self, s):
+    @staticmethod
+    def strToCode(s):
         if len(s) != 4:
             raise ValueError("Too short, must be 4 characters")
-        v = [ ]
+        v = []
         for c in s:
             n = ord(c) - ord('0')
             if n < 0 or n > 9:
                 raise ValueError("Non-numeric digit")
-            v += [ n ]
+            v += [n]
         return v
 
     def menuSetVolume(self, valuesDict, itemId):
-        self.logger.debug("Menu item: Set volume: %s" % str(valuesDict))
+        self.logger.debug(f"Menu item: Set volume: {valuesDict}")
         errors = indigo.Dict()
 
         part = self.checkPartition(valuesDict, errors)
 
-        try: code_keys = self.strToCode(valuesDict['code'])
-        except ValueError: errors['code'] = "User code must be four digits"
+        try:
+            code_keys = self.strToCode(valuesDict['code'])
+        except ValueError:
+            errors['code'] = "User code must be four digits"
 
-        try: 
+        try:
             volume = int(valuesDict['volume'])
-            if volume < 0 or volume > 7: raise ValueError()
+            if volume < 0 or volume > 7:
+                raise ValueError()
         except ValueError:
             errors['volume'] = "Volume must be between 0 (off) and 7 inclusive"
 
@@ -655,19 +555,18 @@ v        """
         if len(errors) > 0:
             return False, valuesDict, errors
 
-        keys = [ 9 ] + code_keys + [ STAR, 0, 4, 4, volume, HASH ]
+        keys = [9] + code_keys + [STAR, 0, 4, 4, volume, HASH]      # noqa
         keys += KEYPRESS_EXIT_PROGRAM
 
         try:
             self.panel.send_keypress(keys, part)
-        except Exception, ex:
+        except Exception as ex:
             self.logger.error("Problem trying to set volume")
             self.logger.error(str(ex))
             errors['volume'] = str(ex)
             return False, valuesDict, errors
-        
-        return True, valuesDict
 
+        return True, valuesDict
 
     def menuRefreshDynamicState(self):
         self.logger.debug("Menu item: Refresh Dynamic State")
@@ -689,7 +588,6 @@ v        """
             self.logger.warn("No panel to refresh")
         else:
             self.panel.request_zones()
-
 
     def menuCreateZoneDevices(self, valuesDict, itemId):
         """
@@ -733,21 +631,21 @@ v        """
             # Add on user-specified prefix/suffix
             zone_name = prefix + zone_name + suffix
             unique_zone_name = zone_name
-            
+
             # Check and ensure uniqueness against other Indigo device names.
             counter = 1
             while unique_zone_name in device_names:
                 unique_zone_name = "%s %d" % (zone_name, counter)
                 counter += 1
-            
+
             if zk not in self.zoneDevs:
                 self.logger.info("Creating Zone %d, partition %d - %s" % (zone_num, part_num, unique_zone_name))
-                zone_dev = indigo.device.create(protocol=indigo.kProtocol.Plugin, 
+                zone_dev = indigo.device.create(protocol=indigo.kProtocol.Plugin,
                                                 address="%d/%d" % (zone_num, part_num),
                                                 name=unique_zone_name,
                                                 description=zone_type,
                                                 deviceTypeId="zone",
-                                                props={'partitionNumber': part_num, 
+                                                props={'partitionNumber': part_num,
                                                        'zoneNumber': zone_num
                                                        }
                                                 )
@@ -759,12 +657,10 @@ v        """
                 # indigo.device.displayInRemoteUI(zone_dev.id, value=True)
             else:
                 zone_dev = self.zoneDevs[zk]
-                self.logger.info("Device %d already exists for Zone %d, partition %d - %s" % \
-                                     (zone_dev.id, zone_num, part_num, zone_dev.name))
+                self.logger.info(f"Device {zone_dev.id:d} already exists for Zone {zone_num:d}, partition {part_num:d} - {zone_dev.name}")
         errors = indigo.Dict()
-        return (True, valuesDict, errors)
+        return True, valuesDict, errors
 
-    
     def menuDumpZonesToLog(self):
         """
         Print to log our internal zone state information; cross-check
@@ -778,9 +674,8 @@ v        """
                 indigo_id = self.zoneDevs[zk].id
             else:
                 indigo_id = None
-            self.logger.log_always("Zone %d, %s, Indigo device %r, state=%r, partition=%d, type=%s" % \
-                                       (zone_num, zone_name,  indigo_id, zone_data['zone_state'],
-                                        part_num, zone_type))
+            self.logger.log_always(
+                f"Zone {zone_num:d}, {zone_name}, Indigo device {indigo_id!r}, state={zone_data['zone_state']!r}, partition={part_num:d}, type={zone_type}")
 
         for zk, dev in self.zoneDevs.iteritems():
             part_num, zone_num = zk
@@ -788,20 +683,20 @@ v        """
                 # We already know about this stone in our official
                 # internal state.
                 continue
-            self.logger.log_always("No zone info for Indigo device %r, id=%d, state=%s, zone %d/%d" % \
-                                       (dev.name, dev.id, dev.states['zoneState'], zone_num, part_num))
-
+            self.logger.log_always(
+                f"No zone info for Indigo device {dev.name!r}, id={dev.id:d}, state={dev.states['zoneState']}, zone {zone_num:d}/{part_num:d}")
 
     def menuSendTestAlarm(self, valuesDict, itemId):
         errors = indigo.Dict()
         try:
             part = int(valuesDict['partition'])
-        except ValueError: part = -1
+        except ValueError:
+            part = -1
         if part < 1 or part > concord.CONCORD_MAX_ZONE:
-            errors['partition'] = "Partition must be set to a valid value (1-%d)" % concord.CONCORD_MAX_ZONE
+            errors['partition'] = f"Partition must be set to a valid value (1-{concord.CONCORD_MAX_ZONE:d})"
 
         code_v = valuesDict['alarmCode'].split('.')
-        CODE_ERR = "Alarm code must be two numbers (>0) separared by a dot, e.g. 3.21"
+        CODE_ERR = "Alarm code must be two numbers (>0) separated by a dot, e.g. 3.21"
         if len(code_v) == 2:
             try:
                 gen = int(code_v[0])
@@ -813,17 +708,16 @@ v        """
         else:
             error['alarmCode'] = CODE_ERR
 
-        self.logEvent("Menu Send Test Alarm %s, partition %d" % (valuesDict['alarmCode'], part), True)
+        self.logEvent(f"Menu Send Test Alarm {valuesDict['alarmCode']}, partition {part:d}", True)
 
         if self.panel is None:
             errors['partition'] = "The alarm panel is not active"
 
         if len(errors) > 0:
-            return (False, valuesDict, errors)
+            return False, valuesDict, errors
         else:
-            self.panel.inject_alarm_message(part, gen, spec)
-            return (True, valuesDict)
-
+            self.panel.inject_alarm_message(part, gen, spec)    # noqa
+            return True, valuesDict
 
     def menuClearLog(self, valuesDict, itemId):
         clear_event_log = valuesDict.get("clearLog", False)
@@ -848,79 +742,84 @@ v        """
             name = 'Error log'
         else:
             log = None
+            name = None
 
-        self.logger.log_always("Displaying %s" % name)
-        
+        self.logger.log_always(f"Displaying {name}")
+
         if log is not None:
             for t, entry in log:
                 self.logger.log_always("%s: %r" % (t.isoformat(' '), entry))
-        
+
         return True, valuesDict
-        
+
     #
     # Plugin Actions object callbacks 
     #
     def actionWriteToLog(self, action):
         message = self.substitute(action.props.get("msg", ""))
         is_err = action.props.get("isErr")
-        event = { 'command': 'PLUGIN_LOG_ACTION',
-                  'message': message,
-                  'is_err': is_err
-                  }
+        event = {'command': 'PLUGIN_LOG_ACTION',
+                 'message': message,
+                 'is_err': is_err
+                 }
         self.logEvent(event, is_err)
 
     def actionConfigZoneMonitor(self, action):
         config = self.substitute(action.props.get("config", ""))
         sendEmail = action.props.get("sendEmail", False)
         self.zoneMonitorEnabled = config.lower().strip() == 'enabled'
-        self.zoneMonitorSendEmail = sendEmail
         self.panelDev.updateStateOnServer('panelZoneMonitorEnabled', self.zoneMonitorEnabled)
-        self.panelDev.updateStateOnServer('panelZoneMonitorSendEmail', self.zoneMonitorSendEmail)
 
     def actionArmDisarm(self, action):
-        type = self.substitute(action.props.get("type", ""))
+        op_type = self.substitute(action.props.get("type", ""))
         code = self.substitute(action.props.get("code", ""))
-        if type == "stay":
-            keys = [ ]
+        if op_type == "stay":
+            keys = []
             code_str = str(code)
             keys += KEYPRESS_ARM_STAY
             for digit in code_str:
-                keys += [ int(digit) ]
+                keys += [int(digit)]
             keys += KEYPRESS_NO_DELAY
             self.panel.send_keypress(keys, 1)
-        if type == "away":
-            keys = [ ]
+        if op_type == "away":
+            keys = []
             code_str = str(code)
             keys += KEYPRESS_ARM_AWAY
             for digit in code_str:
-                keys += [ int(digit) ]
+                keys += [int(digit)]
             self.panel.send_keypress(keys, 1)
-        if type == "disarm":
-            keys = [ ]
+        if op_type == "disarm":
+            keys = []
             code_str = str(code)
             keys += KEYPRESS_DISARM
             for digit in code_str:
-                keys += [ int(digit) ]
+                keys += [int(digit)]
             self.panel.send_keypress(keys, 1)
 
     #
     # Helpers for XML config
     #
-    def partitionFilter(self, filter="", valuesDict=None, typeId="", targetId=0):
+    @staticmethod
+    def partitionFilter(filter="", valuesDict=None, typeId="", targetId=0):
         return PART_FILTER
-    def partitionFilterForTriggers(self, filter="", valuesDict=None, typeId="", targetId=0):
-        self.logger.debug("Enter PFT")
+
+    @staticmethod
+    def partitionFilterForTriggers(filter="", valuesDict=None, typeId="", targetId=0):
         return PART_FILTER_TRIGGER
 
-    def partitionStateFilter(self, filter="", valuesDict=None, typeId="", targetId=0):
+    @staticmethod
+    def partitionStateFilter(filter="", valuesDict=None, typeId="", targetId=0):
         return PART_STATE_FILTER
-    def partitionStateFilterForTriggers(self, filter="", valuesDict=None, typeId="", targetId=0):
+
+    @staticmethod
+    def partitionStateFilterForTriggers(filter="", valuesDict=None, typeId="", targetId=0):
         return PART_STATE_FILTER_TRIGGER
 
-    def alarmGeneralTypeFilter(self, filter="", valuesDict=None, typeId="", targetId=0):
-        gen_codes = [ (str(gen_code), gen_name)
-                      for gen_code, (gen_name, specific_map)
-                      in sorted(concord_alarm_codes.ALARM_CODES.iteritems())]
+    @staticmethod
+    def alarmGeneralTypeFilter(filter="", valuesDict=None, typeId="", targetId=0):
+        gen_codes = [(str(gen_code), gen_name)
+                     for gen_code, (gen_name, specific_map)
+                     in sorted(concord_alarm_codes.ALARM_CODES.iteritems())]
         return [('any', 'Any')] + gen_codes
 
     def getPartitionState(self, part_key):
@@ -929,10 +828,11 @@ v        """
         arm_level = part_data.get('arming_level_code', -1)
         part_state = PART_ARM_STATE_MAP.get(arm_level, 'unknown')
         return part_state
-    
+
     def updateTouchpadDeviceState(self, touchpad_dev, part_key):
         if part_key not in self.parts:
-            self.logger.debug("Unable to update Indigo touchpad device %s - partition %d; no knowledge of that partition" % (touchpad_dev.name, part_key))
+            self.logger.debug(
+                "Unable to update Indigo touchpad device %s - partition %d; no knowledge of that partition" % (touchpad_dev.name, part_key))
             touchpad_dev.updateStateOnServer('partitionState', 'unknown')
             touchpad_dev.updateStateOnServer('lcdLine1', NO_DATA)
             touchpad_dev.updateStateOnServer('lcdLine2', NO_DATA)
@@ -955,7 +855,8 @@ v        """
 
     def updatePartitionDeviceState(self, part_dev, part_key):
         if part_key not in self.parts:
-            self.logger.debug("Unable to update Indigo partition device %s - partition %d; no knowledge of that partition" % (part_dev.name, part_key))
+            self.logger.debug(
+                "Unable to update Indigo partition device %s - partition %d; no knowledge of that partition" % (part_dev.name, part_key))
             part_dev.updateStateOnServer('partitionState', 'unknown')
             part_dev.updateStateOnServer('armingUser', '')
             part_dev.updateStateOnServer('features', 'Unknown')
@@ -964,8 +865,8 @@ v        """
 
         part_state = self.getPartitionState(part_key)
         part_data = self.parts[part_key]
-        arm_user  = part_data.get('user_info', 'Unknown User')
-        features  = part_data.get('feature_state', ['Unknown'])
+        arm_user = part_data.get('user_info', 'Unknown User')
+        features = part_data.get('feature_state', ['Unknown'])
 
         delay_flags = part_data.get('delay_flags')
         if not delay_flags:
@@ -979,10 +880,10 @@ v        """
         part_dev.updateStateOnServer('features', ', '.join(features))
         part_dev.updateStateOnServer('delay', delay_str)
 
-
     def updateZoneDeviceState(self, zone_dev, zone_key):
         if zone_key not in self.zones:
-            self.logger.debug("Unable to update Indigo zone device %s - zone %d partition %d; no knowledge of that zone" % (zone_dev.name, zone_key[1], zone_key[0]))
+            self.logger.debug("Unable to update Indigo zone device %s - zone %d partition %d; no knowledge of that zone" % (
+                zone_dev.name, zone_key[1], zone_key[0]))
             zone_dev.updateStateOnServer('zoneState', 'unavailable')
             return
         data = self.zones[zone_key]
@@ -997,7 +898,7 @@ v        """
         zone_dev.updateStateOnServer('isAlarm', ALARM in zone_state)
         zone_dev.updateStateOnServer('isTrouble', TROUBLE in zone_state)
         zone_dev.updateStateOnServer('isBypassed', BYPASSED in zone_state)
-        
+
         zoneOn = (TRIPPED in zone_state) or (FAULTED in zone_state) or (ALARM in zone_state) or (TROUBLE in zone_state)
         zone_dev.updateStateOnServer('onOffState', zoneOn)
         if zoneOn:
@@ -1021,14 +922,13 @@ v        """
             zs = 'disabled'
         else:
             zs = 'unavailable'
-            
+
         # if bypassed and zs in ('normal', 'tripped'):
         #     zs += '_bypassed'
 
         zone_dev.updateStateOnServer('zoneState', zs)
         if zs in ('faulted', 'alarm'):
             zone_dev.setErrorStateOnServer(', '.join(zone_state))
-
 
     # Will be run in the concurrent thread.
     def panelMessageHandler(self, msg):
@@ -1044,8 +944,7 @@ v        """
             log_fn = self.logger.debug_verbose
         else:
             log_fn = self.logger.debug
-        log_fn("Handling panel message %s, %s" % \
-                   (cmd_id, self.panel_command_names.get(cmd_id, 'Unknown')))
+        log_fn(f"Handling panel message {cmd_id}, {self.panel_command_names.get(cmd_id, 'Unknown')}")
 
         #
         # First set of cases by message to update plugin and device state.
@@ -1057,7 +956,6 @@ v        """
             self.panelDev.updateStateOnServer('panelHwRev', msg['hardware_revision'])
             self.panelDev.updateStateOnServer('panelSwRev', msg['software_revision'])
             self.panelDev.updateStateOnServer('panelZoneMonitorEnabled', self.zoneMonitorEnabled)
-            self.panelDev.updateStateOnServer('panelZoneMonitorSendEmail', self.zoneMonitorSendEmail)
 
         elif cmd_id in ('ZONE_DATA', 'ZONE_STATUS'):
             # First update our internal state about the zone
@@ -1075,15 +973,13 @@ v        """
             new_zone_state = msg['zone_state']
 
             if zk in self.zones:
-                self.logger.debug("Updating zone %s with %s message, zone state=%r" % \
-                                     (zone_name, cmd_id, msg['zone_state']))
+                self.logger.debug(f"Updating zone {zone_name} with {cmd_id} message, zone state={msg['zone_state']!r}")
                 zone_info = self.zones[zk]
                 old_zone_state = zone_info['zone_state']
                 zone_info.update(msg)
                 del zone_info['command_id']
             else:
-                self.logger.info("Learning new zone %s from %s message, zone_state=%r" % \
-                                     (zone_name, cmd_id, msg['zone_state']))
+                self.logger.info(f"Learning new zone {zone_name} from {cmd_id} message, zone_state={msg['zone_state']!r}")
                 zone_info = msg.copy()
                 del zone_info['command_id']
                 self.zones[zk] = zone_info
@@ -1102,46 +998,20 @@ v        """
             # this message.  However, if a zone is in an error state,
             # we don't want to log an error every time it is change
             # between tripped/not-tripped.
-            use_err_log = (isZoneErrState(old_zone_state) or isZoneErrState(new_zone_state)) \
-                and zoneStateChangedExceptTripped(old_zone_state, new_zone_state)
-            
+            use_err_log = (isZoneErrState(old_zone_state) or isZoneErrState(new_zone_state)) and \
+                          zoneStateChangedExceptTripped(old_zone_state, new_zone_state)     # noqa
+
             self.logEventZone(zone_name, new_zone_state, old_zone_state,
                               "Zone update message", cmd_id, msg, use_err_log)
 
-            # If zone monitor is enabled, log any zone changes to the
-            # error log.  Optionally send an email if the user asked
-            # for that, and fire Indigo triggers.
+            # If zone monitor is enabled, log any zone changes to the error log and fire Indigo triggers.
             if self.zoneMonitorEnabled:
-
+                self.logEventZone(zone_name, new_zone_state, old_zone_state, "Zone monitor / Zone update message", cmd_id, msg, True)
                 # Activate any zone monitor triggers
                 for trigger in self.getTriggersForType(['zoneMonitorTriggered']):
                     trig_part = any_if_blank(trigger.pluginProps['address'])
                     if trig_part == 'any' or int(trig_part) == part_num:
                         indigo.trigger.execute(trigger)
-
-                self.logEventZone(zone_name, new_zone_state, old_zone_state,
-                                  "Zone monitor / Zone update message", cmd_id, msg, True)
-                if self.zoneMonitorSendEmail:
-                    date_str = datetime.now().isoformat(' ')[:19]
-                    if isZoneErrState(new_zone_state):
-                        change_str = 'ERROR'
-                    elif TRIPPED in new_zone_state and TRIPPED not in old_zone_state:
-                        change_str = 'OPENED'
-                    elif TRIPPED in old_zone_state and TRIPPED not in new_zone_state:
-                        change_str = 'CLOSED'
-                    else:
-                        change_Str = 'UNKNOWN'
-                    subject = "Zone Monitor: %s %s at %s" % (zone_name, change_str, date_str)
-                    body = """
-When: %s
-Zone: %s
-Command: %s
-Old State: %r
-New State: %r
-Message: %r
-""" % (date_str, zone_name, cmd_id, old_zone_state, new_zone_state, msg)
-                    self.sendEmail(subject, body)
-
 
         elif cmd_id in ('PART_DATA', 'ARM_LEVEL', 'FEAT_STATE', 'DELAY', 'TOUCHPAD'):
             part_num = msg['partition_number']
@@ -1194,7 +1064,6 @@ Message: %r
                 use_err_log = cmd_id != 'PART_DATA' or old_part_state != part_state or part_state != 'ready'
                 self.logEvent(msg, use_err_log)
 
-
         elif cmd_id == 'EQPT_LIST_DONE':
             if not self.panelInitialQueryDone:
                 self.panelDev.updateStateOnServer('panelState', 'active')
@@ -1211,8 +1080,8 @@ Message: %r
             part_num = msg['partition_number']
             source_type = msg['source_type']
             source_num = msg['source_number']
-                        
-            alarm_code_str ="%d.%d" % (msg['alarm_general_type_code'], msg['alarm_specific_type_code'])
+
+            alarm_code_str = "%d.%d" % (msg['alarm_general_type_code'], msg['alarm_specific_type_code'])
             alarm_desc = "%s / %s" % (msg['alarm_general_type'], msg['alarm_specific_type'])
             event_data = msg['event_specific_data']
 
@@ -1220,8 +1089,9 @@ Message: %r
             if alarm_code_str in self.ignoredCodes[part_num]:
                 self.logger.debug(" Ignoring alarm code {}".format(alarm_code_str))
             else:
-            
-                self.logger.error("ALARM or TROUBLE on partition %d: Source is %s/%d; Alarm/Trouble is %s: %s; event data = %s" % (part_num, source_type, source_num, alarm_code_str, alarm_desc, event_data))
+
+                self.logger.error("ALARM or TROUBLE on partition %d: Source is %s/%d; Alarm/Trouble is %s: %s; event data = %s" % (
+                    part_num, source_type, source_num, alarm_code_str, alarm_desc, event_data))
 
                 # Try to get a better name for the alarm source if it is a zone.
                 zk = (part_num, source_num)
@@ -1229,7 +1099,7 @@ Message: %r
                     zone_name = self.zones[zk].get('zone_text', 'Unknown')
                     if zk in self.zoneDevs:
                         source_desc = "Zone %d - Indigo zone %s, alarm zone %s" % \
-                            (source_num, self.zoneDevs[zk].name, zone_name)
+                                      (source_num, self.zoneDevs[zk].name, zone_name)
                     else:
                         source_desc = "Zone %d - alarm zone %s" % (source_num, zone_name)
                 else:
@@ -1246,7 +1116,7 @@ Message: %r
                     self.logger.debug(" .... Done")
                 else:
                     self.logger.warn("No Indigo partition device for partition %d" % part_num)
-            
+
                 msg['source_desc'] = source_desc
                 self.logEvent(msg, True)
 
@@ -1273,7 +1143,7 @@ Message: %r
 
                 part_match = (trig_part == 'any') or (int(trig_part) == part_num)
                 level_match = (trig_level == 'any') or (trig_level == arm_level)
-                
+
                 if part_match and level_match:
                     self.logger.debug("ARM_LEVEL trigger matches, executing trigger {}".format(trigger.name))
                     indigo.trigger.execute(trigger)
@@ -1288,7 +1158,7 @@ Message: %r
 
                 part_match = (trig_part == 'any') or (int(trig_part) == part_num)
                 code_match = (trig_gen_code == 'any') or (int(trig_gen_code) == alarm_gen_code)
-                
+
                 if part_match and code_match:
                     indigo.trigger.execute(trigger)
 

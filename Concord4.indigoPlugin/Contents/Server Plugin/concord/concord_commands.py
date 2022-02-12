@@ -3,10 +3,9 @@ List of command codes and handler functions for commands sent to and
 from the alarm panel, plus code to tect mappings.
 """
 
-
-from concord_helpers import BadMessageException, ascii_hex_to_byte
-from concord_tokens import decode_text_tokens
-from concord_alarm_codes import ALARM_CODES
+from concord.concord_helpers import BadMessageException, ascii_hex_to_byte
+from concord.concord_tokens import decode_text_tokens
+from concord.concord_alarm_codes import ALARM_CODES
 
 STAR = 0xa
 HASH = 0xb
@@ -74,7 +73,7 @@ CAPABILITY_CODES = {
     0x07: ("Energy Management", None),
     0x08: ("Input Zones", "Number of inputs"),
     0x09: ("Phast/Automation/System Manager", None),
-    0x00: ("Phone Interface", None),
+    0x0a: ("Phone Interface", None),
     0x0b: ("Relay Outputs", "Number of outputs"),
     0x0c: ("RF Receiver", None),
     0x0d: ("RF Transmitter", None),
@@ -91,14 +90,12 @@ CAPABILITY_CODES = {
     0x18: ("LED Display", None),
 }
 
-
-
 PANEL_TYPES = {
     0x14: "Concord",
     0x0b: "Concord Express",
     0x1e: "Concord Express 4",
     0x0e: "Concord Euro",
-    
+
     0x0d: "Advent Commercial Fire 250",
     0x0f: "Advent Home Navigator 132",
     0x10: "Advent Commercial Burg 250",
@@ -110,6 +107,7 @@ PANEL_TYPES = {
 }
 
 PANEL_TYPES_CONCORD = (0x14, 0x0b, 0x1e, 0x0e)
+
 
 def ck_msg_len(msg, cmd, desired_len, exact_len=True):
     """ 
@@ -128,26 +126,28 @@ def ck_msg_len(msg, cmd, desired_len, exact_len=True):
         bad_len = len(msg) != desired_len + 1
 
     if bad_len:
-        raise BadMessageException("Message too short for command %r, expected %s %d but got %d" % \
-                                      (cmd, comp, desired_len, len(msg)-1))
+        raise BadMessageException(f"Message too short for command {cmd!r}, expected {comp} {desired_len:d} but got {len(msg) - 1:d}")
+
 
 def bytes_to_num(data):
     """ *data* must be at least 4 bytes long, big-endian order. """
     assert len(data) >= 4
     num = data[3]
-    num += ((data[2] << 8)  &      0xff00)
-    num += ((data[1] << 16) &    0xff0000)
-    num += ((data[0] << 24) &  0xff000000)
+    num += ((data[2] << 8) & 0xff00)
+    num += ((data[1] << 16) & 0xff0000)
+    num += ((data[0] << 24) & 0xff000000)
     return num
-    
+
+
 def num_to_bytes(num):
-    return [ 0xff & (num >> 24), 0xff & (num >> 16), 0xff & (num >> 8), 0xff & num ]
+    return [0xff & (num >> 24), 0xff & (num >> 16), 0xff & (num >> 8), 0xff & num]
+
 
 def cmd_panel_type(msg):
     ck_msg_len(msg, 0x01, 0x0b)
-    assert msg[1] == 0x01, "Unexpected command type 0x02x" % msg[1]
+    assert msg[1] == 0x01, f"Unexpected command type 0x{msg[1]:02x}"
     panel_type = msg[2]
-    d = { 'panel_type': PANEL_TYPES.get(panel_type, "Unknown Panel Type 0x%02x" % panel_type) }
+    d = {'panel_type': PANEL_TYPES.get(panel_type, f"Unknown Panel Type 0x{panel_type:02x}")}
     if panel_type in PANEL_TYPES_CONCORD:
         # Interpret Concord hw/sw revision numbers.
         # Really not sure about this. XXX
@@ -175,11 +175,11 @@ def cmd_panel_type(msg):
         # Hw rev is letter/digit pair, first byte represents 'A' as 1,
         # Second byte represents '0' as 0.
         if 0 < msg[3] < 27:
-            letter = chr(ord('A')-1+msg[3])
+            letter = chr(ord('A') - 1 + msg[3])
         else:
             letter = '?'
         if 0 <= msg[4] <= 9:
-            digit = chr(ord('0')+msg[4])
+            digit = chr(ord('0') + msg[4])
         else:
             digit = '?'
         hw_rev = letter + digit
@@ -195,18 +195,19 @@ def cmd_panel_type(msg):
 
     return d
 
+
 def cmd_automation_event_lost(msg):
     """ 
     (From protocol docs) Panel's automation buffer has overflowed.
     Automation modules should respond to this with request for Dynamic
     Data Refresh and Full Equipment List Request.
     """
-    return { }
+    return {}
 
 
 TRIPPED = 'Tripped'
 FAULTED = 'Faulted'
-ALARM   = 'Alarm'
+ALARM = 'Alarm'
 TROUBLE = 'Trouble'
 BYPASSED = 'Bypassed'
 
@@ -218,9 +219,10 @@ ZONE_STATES = {
     0x10: BYPASSED,
 }
 
+
 def build_state_list(state_code, state_dict):
-    states = [ ]
-    for bitval, state_name in sorted(state_dict.iteritems()):
+    states = []
+    for bitval, state_name in sorted(state_dict.items()):
         if bitval & state_code:
             states.append(state_name)
     return states
@@ -233,34 +235,36 @@ ZONE_TYPES = {
     2: 'RF Touchpad',
 }
 
+
 def cmd_zone_status(msg):
     ck_msg_len(msg, 0x21, 0x07)
-    assert msg[1] == 0x21, "Unexpected command type 0x02x" % msg[1]
-    d = { 'partition_number': msg[2],
-          'area_number': msg[3],
-          'zone_number': (msg[4] << 8) + msg[5],
-          'zone_state': build_state_list(msg[6], ZONE_STATES)
-          }
-    return d;
+    assert msg[1] == 0x21, f"Unexpected command type 0x{msg[1]:02x}"
+    d = {'partition_number': msg[2],
+         'area_number': msg[3],
+         'zone_number': (msg[4] << 8) + msg[5],
+         'zone_state': build_state_list(msg[6], ZONE_STATES)
+         }
+    return d
+
 
 def cmd_zone_data(msg):
     ck_msg_len(msg, 0x03, 0x09, exact_len=False)
-    assert msg[1] == 0x03, "Unexpected command type 0x02x" % msg[1]
-    d = { 'partition_number': msg[2],
-          'area_number': msg[3],
-          'group_number': msg[4],
-          'zone_number': (msg[5] << 8) + msg[6],
-          'zone_type': ZONE_TYPES.get(msg[7], 'Unknown'),
-          'zone_state': build_state_list(msg[8], ZONE_STATES),
-          'zone_text': '',
-          'zone_text_tokens': [ ],
-          }
+    assert msg[1] == 0x03, f"Unexpected command type 0x{msg[1]:02x}"
+    d = {'partition_number': msg[2],
+         'area_number': msg[3],
+         'group_number': msg[4],
+         'zone_number': (msg[5] << 8) + msg[6],
+         'zone_type': ZONE_TYPES.get(msg[7], 'Unknown'),
+         'zone_state': build_state_list(msg[8], ZONE_STATES),
+         'zone_text': '',
+         'zone_text_tokens': [],
+         }
     if len(msg) > 0x09 + 1:
         d['zone_text'] = decode_text_tokens(msg[9:-1])
         d['zone_text_tokens'] = msg[9:-1]
-    
-    return d;
-    
+
+    return d
+
 
 # Concord user number values only.
 USER_NUMBERS = {
@@ -282,27 +286,28 @@ ARMING_LEVELS = {
     5: 'Silent',
 }
 
+
 def cmd_arming_level(msg):
     ck_msg_len(msg, (0x22, 0x01), 0x08)
     assert (msg[1], msg[2]) == (0x22, 0x01), "Unexpected command type"
-    d = { 'partition_number': msg[3],
-          'area_number': msg[4],
-          'is_keyfob': msg[5] > 0,
-          'user_number_high': msg[5],
-          'user_number_low': msg[6],
-          }
+    d = {'partition_number': msg[3],
+         'area_number': msg[4],
+         'is_keyfob': msg[5] > 0,
+         'user_number_high': msg[5],
+         'user_number_low': msg[6],
+         }
     un = msg[6]
     if un in USER_NUMBERS:
         user_num = USER_NUMBERS[un]
     elif un <= 229:
         user_num = 'Regular User %d' % un
     elif 230 <= un <= 237:
-        user_num  = 'Partition %d Master Code' % (un - 230)
+        user_num = f'Partition {un - 230:d} Master Code'
     elif 238 <= un <= 245:
-        user_num = 'Partition %d Duress Code' % (un - 238)
+        user_num = f'Partition {un - 238:d} Duress Code'
     else:
         user_num = 'Unknown Code'
-        
+
     d['user_info'] = user_num
     d['arming_level'] = ARMING_LEVELS.get(msg[7], 'Unknown Arming Level')
     d['arming_level_code'] = msg[7]
@@ -315,19 +320,18 @@ def decode_alarm_type(gen_code, spec_code):
     gen_type, spec_type_dict = ALARM_CODES[gen_code]
     return gen_type, spec_type_dict.get(spec_code, 'Unknown')
 
-
 def cmd_entry_exit_delay(msg):
     assert (msg[1], msg[2]) == (0x22, 0x03), "Unexpected command type"
     ck_msg_len(msg, (0x22, 0x03), 0x08)
-    d = { 'partition_number': msg[3],
-          'area_number': msg[4],
-          'delay_seconds': bytes_to_num([0, 0, msg[6], msg[7]]),
-          }
+    d = {'partition_number': msg[3],
+         'area_number': msg[4],
+         'delay_seconds': bytes_to_num([0, 0, msg[6], msg[7]]),
+         }
     flags = msg[5]
-    bits54 = (flags >> 4) & 0x3 
+    bits54 = (flags >> 4) & 0x3
     bit6 = (flags >> 5) & 1
     bit7 = (flags >> 6) & 1
-    v = [ ]
+    v = []
     if bits54 == 0:
         v.append('standard')
     elif bits54 == 1:
@@ -344,7 +348,7 @@ def cmd_entry_exit_delay(msg):
         v.append('start delay')
 
     d['delay_flags'] = v
-    return d;
+    return d
 
 
 # Concord sources
@@ -357,59 +361,62 @@ ALARM_SOURCE_TYPE = {
 }
 
 # Reverse map of alarm source name to type code
-ALARM_SOURCE_NAME = dict((v, k) for k, v in ALARM_SOURCE_TYPE.iteritems())
+ALARM_SOURCE_NAME = dict((v, k) for k, v in ALARM_SOURCE_TYPE.items())
 
 
 def cmd_alarm_trouble(msg):
     assert (msg[1], msg[2]) == (0x22, 0x02), "Unexpected command type"
     ck_msg_len(msg, (0x22, 0x02), 0x0d)
-    d = { 'partition_number': msg[3],
-          'area_number': msg[4],
-          'source_type': ALARM_SOURCE_TYPE.get(msg[5], 'Unknown Source'),
-          'source_number': bytes_to_num([0, msg[6], msg[7], msg[8]]),
-          'alarm_general_type_code': msg[9],
-          'alarm_specific_type_code': msg[10],
-          'event_specific_data': (msg[11] << 8) + msg[12],
-    }
+    d = {'partition_number': msg[3],
+         'area_number': msg[4],
+         'source_type': ALARM_SOURCE_TYPE.get(msg[5], 'Unknown Source'),
+         'source_number': bytes_to_num([0, msg[6], msg[7], msg[8]]),
+         'alarm_general_type_code': msg[9],
+         'alarm_specific_type_code': msg[10],
+         'event_specific_data': (msg[11] << 8) + msg[12],
+         }
 
     # Get text descriptions
     gen_type, spec_type = decode_alarm_type(msg[9], msg[10])
     d['alarm_general_type'] = gen_type
     d['alarm_specific_type'] = spec_type
-    
+
     return d
 
-def build_cmd_alarm_trouble(partition, source_type, source_number, 
-                             general_type, specific_type, event_data=0):
+
+def build_cmd_alarm_trouble(partition, source_type, source_number,
+                            general_type, specific_type, event_data=0):
     assert source_type in ALARM_SOURCE_NAME
     source_code = ALARM_SOURCE_NAME[source_type]
-    msg = [ 0x0d, 0x22, 0x02, partition, 0, source_code ] + \
-        num_to_bytes(source_number)[1:] + \
-        [ general_type, specific_type ] + \
-        num_to_bytes(event_data)[2:]
+    msg = [0x0d, 0x22, 0x02, partition, 0, source_code] + num_to_bytes(source_number)[1:] + \
+          [general_type, specific_type] + num_to_bytes(event_data)[2:]
     assert len(msg) == 0x0d
     return msg
+
 
 # Concord touchpad message types
 TOUCHPAD_MSG_TYPE = {
     0: 'Normal',
     1: 'Broadcast',
-    }
+}
+
 
 def cmd_touchpad(msg):
     assert (msg[1], msg[2]) == (0x22, 0x09), "Unexpected command type"
     ck_msg_len(msg, (0x22, 0x09), 0x06, exact_len=False)
-    d = { 'partition_number': msg[3],
-          'area_number': msg[4],
-          'message_type': TOUCHPAD_MSG_TYPE.get(msg[5], 'Unknown Message Type'),
-          'display_text': '',
-          }
+    d = {'partition_number': msg[3],
+         'area_number': msg[4],
+         'message_type': TOUCHPAD_MSG_TYPE.get(msg[5], 'Unknown Message Type'),
+         'display_text': '',
+         }
     if len(msg) > 0x06:
         d['display_text'] = decode_text_tokens(msg[6:-1])
     return d
 
+
 def cmd_siren_sync(msg):
-    return { }
+    return {}
+
 
 # Concord arming levels
 ARM_LEVEL = {
@@ -420,52 +427,62 @@ ARM_LEVEL = {
     9: 'Sensor Test',
 }
 
+
 def cmd_partition_data(msg):
     assert msg[1] == 0x04, "Unexpected command type"
     ck_msg_len(msg, 0x04, 0x05, exact_len=False)
-    d = { 'partition_number': msg[2],
-          'area_number': msg[3],
-          'arming_level': ARM_LEVEL.get(msg[4], 'Unknown Arming Level'),
-          'arming_level_code': msg[4],
-          'partition_text': '',
-    }
+    d = {'partition_number': msg[2],
+         'area_number': msg[3],
+         'arming_level': ARM_LEVEL.get(msg[4], 'Unknown Arming Level'),
+         'arming_level_code': msg[4],
+         'partition_text': '',
+         }
     if len(msg) > 0x05:
         d['partition_text'] = decode_text_tokens(msg[5:-1])
     return d
 
+
 def bcd_decode(chars):
     val = 0
     for c in chars:
-        val = 100*val + 10*((c >> 4) & 0xF) + (c & 0xf)
+        val = 100 * val + 10 * ((c >> 4) & 0xF) + (c & 0xf)
     return val
+
 
 def cmd_user_data(msg):
     assert msg[1] == 0x09, "Unexpected command type"
     ck_msg_len(msg, 0x09, 0x04, exact_len=False)
-    d = { 'user_number': msg[3],
-          'user_code': 'Not supplied',
-        }
+    d = {'user_number': msg[3],
+         'user_code': 'Not supplied',
+         }
     if len(msg) >= 8:
         d['user_code'] = '%04d' % bcd_decode(msg[5:6])
     return d
-    
+
+
 def cmd_sched_data(msg):
-    return { }
+    return {}
+
 
 def cmd_sched_event_data(msg):
-    return { }
+    return {}
+
 
 def cmd_light_attach(msg):
-    return { }
+    return {}
+
 
 def cmd_siren_setup(msg):
-    return { }
+    return {}
+
 
 def cmd_siren_go(msg):
-    return { }
+    return {}
+
 
 def cmd_siren_stop(msg):
-    return { }
+    return {}
+
 
 FEAT_STATES = {
     0x01: 'Chime',
@@ -476,30 +493,36 @@ FEAT_STATES = {
     0x20: 'Quick arm',
 }
 
+
 def cmd_feat_state(msg):
     assert (msg[1], msg[2]) == (0x22, 0x0c), "Unexpected command type"
     ck_msg_len(msg, (0x22, 0x0c), 0x06)
-    d = { 'partition_number': msg[3],
-          'area_number': msg[4],
-          'feature_state': build_state_list(msg[5], FEAT_STATES),
-          }
-    return d;
+    d = {'partition_number': msg[3],
+         'area_number': msg[4],
+         'feature_state': build_state_list(msg[5], FEAT_STATES),
+         }
+    return d
 
 
 def cmd_temp(msg):
-    return { }
+    return {}
+
 
 def cmd_time_and_date(msg):
-    return { }
+    return {}
+
 
 def cmd_lights_state(msg):
-    return { }
+    return {}
+
 
 def cmd_user_lights(msg):
-    return { }
+    return {}
+
 
 def cmd_keyfob(msg):
-    return { }
+    return {}
+
 
 def cmd_clear_image(msg):
     """
@@ -512,20 +535,23 @@ def cmd_clear_image(msg):
     Equipment List and Refresh when the Clear Image command is
     received.
     """
-    return { }
+    return {}
+
 
 def cmd_eqpt_list_done(msg):
-    return { }
+    return {}
+
 
 def cmd_superbus_dev_data(msg):
-    return { }
+    return {}
+
 
 def cmd_superbus_dev_cap(msg):
-    return { }
+    return {}
+
 
 def cmd_output_data(msg):
-    return { }
-
+    return {}
 
 
 # These are commands sent by the panel and received by the automation
@@ -538,32 +564,32 @@ RX_COMMANDS = {
     0x02: ('EVENT_LOST', "Automation Event Lost", cmd_automation_event_lost),
 
     # Following are received in response to equipment list requests.
-    0x03: ('ZONE_DATA',    "Zone Data", cmd_zone_data),
-    0x04: ('PART_DATA',    "Partition Data", cmd_partition_data),
+    0x03: ('ZONE_DATA', "Zone Data", cmd_zone_data),
+    0x04: ('PART_DATA', "Partition Data", cmd_partition_data),
     0x05: ('BUS_DEV_DATA', "SuperBus Device Data", cmd_superbus_dev_data),
     0x06: ('BUS_CAP_DATA', "SuperBus Device Capabilities Data", cmd_superbus_dev_cap),
-    0x07: ('OUTPUT_DATA',  "Output Data", cmd_output_data),
+    0x07: ('OUTPUT_DATA', "Output Data", cmd_output_data),
 
     # 0x08 is sent after all 0x03 and 0x05 (zone & SuperBus device)
     # commands have been sent in response to an equipment list
     # request.
     0x08: ('EQPT_LIST_DONE', "Equipment List Complete", cmd_eqpt_list_done),
 
-    0x09: ('USER_DATA',    "User Data", cmd_user_data),
-    0x0a: ('SCHED_DATA',   "Schedule Data", cmd_sched_data),
-    0x0b: ('EVENT_DATA',   "Scheduled Event Data", cmd_sched_event_data),
+    0x09: ('USER_DATA', "User Data", cmd_user_data),
+    0x0a: ('SCHED_DATA', "Schedule Data", cmd_sched_data),
+    0x0b: ('EVENT_DATA', "Scheduled Event Data", cmd_sched_event_data),
     0x0c: ('LIGHT_ATTACH', "Light to Sensor Attachment", cmd_light_attach),
     # End of equipment list responses.
 
     0x20: ('CLEAR_IMAGE', "Clear Automation Image", cmd_clear_image),
 
-    0x21: ('ZONE_STATUS',        "Zone Status", cmd_zone_status),
-    (0x22, 0x01): ('ARM_LEVEL',  "Arming Level", cmd_arming_level),
-    (0x22, 0x02): ('ALARM',      "Alarm/Trouble",  cmd_alarm_trouble),
-    (0x22, 0x03): ('DELAY',      "Entry/Exit Delay", cmd_entry_exit_delay),
+    0x21: ('ZONE_STATUS', "Zone Status", cmd_zone_status),
+    (0x22, 0x01): ('ARM_LEVEL', "Arming Level", cmd_arming_level),
+    (0x22, 0x02): ('ALARM', "Alarm/Trouble", cmd_alarm_trouble),
+    (0x22, 0x03): ('DELAY', "Entry/Exit Delay", cmd_entry_exit_delay),
     (0x22, 0x04): ('SIREN_SETUP', "Siren Setup", cmd_siren_setup),
-    (0x22, 0x05): ('SIREN_SYNC',  "Siren Synchronize", cmd_siren_sync),
-    (0x22, 0x06): ('SIREN_GO',    "Siren Go", cmd_siren_go),
+    (0x22, 0x05): ('SIREN_SYNC', "Siren Synchronize", cmd_siren_sync),
+    (0x22, 0x06): ('SIREN_GO', "Siren Go", cmd_siren_go),
 
     (0x22, 0x09): ('TOUCHPAD', "Touchpad Display", cmd_touchpad),
 
@@ -574,8 +600,8 @@ RX_COMMANDS = {
     (0x22, 0x0e): ('TIME', "Time and Date", cmd_time_and_date),
 
     (0x23, 0x01): ('LIGHTS_STATE', "Lights State Command", cmd_lights_state),
-    (0x23, 0x02): ('USER_LIGHTS',  "User Lights Command", cmd_user_lights),
-    (0x23, 0x03): ('KEYFOB_CMD',   "Keyfob Command", cmd_keyfob),
+    (0x23, 0x02): ('USER_LIGHTS', "User Lights Command", cmd_user_lights),
+    (0x23, 0x03): ('KEYFOB_CMD', "Keyfob Command", cmd_keyfob),
 }
 
 EQPT_LIST_REQ_TYPES = {
@@ -591,25 +617,28 @@ EQPT_LIST_REQ_TYPES = {
     'LIGHT_ATTACH': 0x0c,
 }
 
+
 def build_cmd_equipment_list(request_type=0):
     assert request_type in EQPT_LIST_REQ_TYPES.values()
     if request_type == 0:
-        return [ 0x2, 0x2 ]
+        return [0x2, 0x2]
     else:
-        return [ 0x3, 0x2, request_type ]
+        return [0x3, 0x2, request_type]
+
 
 def build_dynamic_data_refresh():
-    return [ 0x02, 0x20 ]
+    return [0x02, 0x20]
+
 
 def build_keypress(keys, partition, area=0, no_check=False):
     assert len(keys) < 55
     if not no_check:
         for k in keys:
             assert k in KEYPRESS_CODES
-    data = [ 4+len(keys), 0x40, partition, area ]
+    data = [4 + len(keys), 0x40, partition, area]
     data.extend(keys)
     return data
-    
+
 
 TX_COMMANDS = {
     # Command code -> (command name, command construction function)

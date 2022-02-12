@@ -27,9 +27,6 @@
                     <Option value="disabled">Disabled</Option>
                 </List>
             </Field>
-            <Field id="sendEmail" type="checkbox" defaultValue="true">
-                <Label>Send email on zone changes</Label>
-            </Field>
         </ConfigUI>
     </Action>
     <Action id="arm">
