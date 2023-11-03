@@ -6,3 +6,4 @@ This is a continuation of the [py-concord](https://github.com/douglasdecouto/py-
 
 
 
+This plugin has not been ported to Python 3 and is discontinued.
